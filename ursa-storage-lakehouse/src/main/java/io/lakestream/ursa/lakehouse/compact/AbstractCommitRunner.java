@@ -8,7 +8,7 @@ import static io.lakestream.ursa.storage.proto.IndexType.COMPACT;
 
 import io.lakestream.api.Position;
 import io.lakestream.ursa.compaction.CompactTaskManager;
-import io.lakestream.ursa.compaction.common.ManagedTableFileIndex;
+import io.lakestream.ursa.compaction.common.CompactedObjectFileIndex;
 import io.lakestream.ursa.compaction.metrics.CompactionMetrics;
 import io.lakestream.ursa.compaction.task.CompactStreamTask;
 import io.lakestream.ursa.compaction.task.ManagedWriteResult;
@@ -283,11 +283,11 @@ public class AbstractCommitRunner {
             if (compactStreamTask.getManagedWriteResults() != null
                 && !compactStreamTask.getManagedWriteResults().isEmpty()) {
                 var extraMetadata = value.extraData().get();
-                ManagedTableFileIndex fileIndex = new ManagedTableFileIndex();
+                CompactedObjectFileIndex fileIndex = new CompactedObjectFileIndex();
                 for (ManagedWriteResult wr : compactStreamTask.getManagedWriteResults()) {
                     fileIndex.append(wr.getLastEntryId(), wr.getFilePath());
                 }
-                extraMetadata.put(ManagedTableFileIndex.NAME, fileIndex.serializeToString());
+                extraMetadata.put(CompactedObjectFileIndex.NAME, fileIndex.serializeToString());
             }
             storageApi.withStreamWriteLease(streamId, ignoredLease ->
                 storageApi.compactEntryIndex(

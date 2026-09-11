@@ -8,7 +8,6 @@ import io.lakestream.api.StreamMetadata;
 import io.lakestream.api.materialization.TableCatalog;
 import io.lakestream.api.materialization.TableCatalogType;
 import io.lakestream.api.materialization.TableMaterializationPolicy;
-import io.lakestream.api.materialization.TableMode;
 import io.lakestream.ursa.compaction.DynamicConfigs;
 import io.lakestream.ursa.exception.ExceptionCode;
 import io.lakestream.ursa.lakehouse.LakehouseConfiguration;
@@ -18,7 +17,6 @@ import io.lakestream.ursa.lakehouse.v2.delta.DeltaExternalDLTTableWriter;
 import io.lakestream.ursa.lakehouse.v2.delta.DeltaExternalTableWriter;
 import io.lakestream.ursa.lakehouse.v2.iceberg.IcebergExternalDLTTableWriter;
 import io.lakestream.ursa.lakehouse.v2.iceberg.IcebergExternalTableWriter;
-import io.lakestream.ursa.lakehouse.v2.iceberg.IcebergManagedTableWriter;
 import io.lakestream.ursa.materialization.MaterializationException;
 import io.lakestream.ursa.materialization.MaterializationRuntime;
 import io.lakestream.ursa.materialization.serde.EntrySerdeFactory;
@@ -54,14 +52,7 @@ public final class LakehouseWriterFactory {
     private LakehouseWriterFactory() {
     }
 
-    /**
-     * Builds an Iceberg writer. {@link TableMode#MANAGED} maps to
-     * {@link IcebergManagedTableWriter}; its writer topic remains the incarnation-scoped partition
-     * log so SBT paths and partition metadata never depend on the catalog table identifier, while
-     * the resolved identifier is carried separately in {@link LakehouseConfiguration}.
-     * {@link TableMode#EXTERNAL} (and {@link TableMode#CUSTOM} for now) maps to
-     * {@link IcebergExternalTableWriter} using the resolved SDT identifier directly.
-     */
+    /** Builds a writer for the resolved external Iceberg destination. */
     static AbstractLakehouseWriter iceberg(TableMaterializationPolicy policy,
                                            TableCatalog catalog,
                                            StreamMetadata streamMetadata,
@@ -79,21 +70,10 @@ public final class LakehouseWriterFactory {
         String destinationTopic = destinationTopic(policy, streamMetadata);
         String schemaTopic = schemaTopic(streamMetadata, runtime.taskProperties());
 
-        TableMode mode = effectiveMode(policy);
-        return switch (mode) {
-            case MANAGED -> new IcebergManagedTableWriter(
-                    sourceTopic(streamMetadata, runtime.taskProperties()), schemaTopic,
-                    serdeFactory, config, provider);
-            case EXTERNAL, CUSTOM -> new IcebergExternalTableWriter(
-                    destinationTopic, schemaTopic, serdeFactory, config, provider);
-        };
+        return new IcebergExternalTableWriter(destinationTopic, schemaTopic, serdeFactory, config, provider);
     }
 
-    /**
-     * Builds a Delta writer. Both {@link TableMode#MANAGED} and {@link TableMode#EXTERNAL} map to
-     * {@link DeltaExternalTableWriter} today — the existing Delta hierarchy has no separate "managed"
-     * variant for non-UC Delta. T9 can split this if a managed Delta writer is added.
-     */
+    /** Builds a writer for the resolved external Delta destination. */
     static AbstractLakehouseWriter delta(TableMaterializationPolicy policy,
                                          TableCatalog catalog,
                                          StreamMetadata streamMetadata,
@@ -137,9 +117,7 @@ public final class LakehouseWriterFactory {
 
     /**
      * Builds the external dead-letter-table (DLT) writer for a stream, used to capture records that
-     * fail serde (bad/incompatible schema, malformed payload) so they are not silently dropped. Only
-     * the {@link TableMode#EXTERNAL EXTERNAL} path has a DLT (mirrors
-     * {@code LakehouseFactory.getExternalDLTWriter}); MANAGED/CUSTOM return empty. The caller
+     * fail serde (bad/incompatible schema, malformed payload) so they are not silently dropped. The caller
      * registers a {@code DLTFailureMessageHandler} wrapping this writer on the main external writer.
      */
     static Optional<LakehouseRecordWriter<FailureMessage>> externalDltWriter(TableMaterializationPolicy policy,
@@ -147,9 +125,6 @@ public final class LakehouseWriterFactory {
                                                                        StreamMetadata streamMetadata,
                                                                        String prefix,
                                                                        Map<String, String> taskProperties) {
-        if (effectiveMode(policy) != TableMode.EXTERNAL) {
-            return Optional.empty();
-        }
         LakehouseConfiguration config = buildConfiguration(catalog, policy, prefix, taskProperties);
         String topic = destinationTopic(policy, streamMetadata);
         InstrumentProvider provider = InstrumentProvider.NOOP;
@@ -208,8 +183,6 @@ public final class LakehouseWriterFactory {
         } else if (type == TableCatalogType.DELTA || type == TableCatalogType.DELTA_UC) {
             properties.setProperty("lakehouseType", LakehouseConfiguration.LakehouseType.DELTA.name());
         }
-        // Mirror the table mode onto the legacy enum so writers route correctly.
-        properties.setProperty("streamTableMode", legacyMode(policy).name());
         // Back-compat: project the task's legacy DynamicConfigs onto the flat keys the writers read,
         // so deployments that drove materialization through task properties behave the same on the
         // policy-based pipeline. Task properties take precedence over the catalog/policy-derived values.
@@ -276,20 +249,6 @@ public final class LakehouseWriterFactory {
                 .ifPresent(v -> properties.setProperty("base.schema.version", String.valueOf(v)));
     }
 
-    private static LakehouseConfiguration.StreamTableMode legacyMode(TableMaterializationPolicy policy) {
-        return switch (effectiveMode(policy)) {
-            case MANAGED -> LakehouseConfiguration.StreamTableMode.MANAGED;
-            case EXTERNAL -> LakehouseConfiguration.StreamTableMode.EXTERNAL;
-            case CUSTOM -> LakehouseConfiguration.StreamTableMode.CUSTOM;
-        };
-    }
-
-    private static TableMode effectiveMode(TableMaterializationPolicy policy) {
-        return policy.table()
-                .flatMap(t -> t.mode())
-                .orElse(TableMode.MANAGED);
-    }
-
     static String destinationTopic(
             TableMaterializationPolicy policy, StreamMetadata streamMetadata) {
         return policy.tableIdentifier()
@@ -302,13 +261,6 @@ public final class LakehouseWriterFactory {
 
     static String schemaTopic(StreamMetadata streamMetadata, Map<String, String> streamProperties) {
         return KafkaSourceMetadata.topicName(streamMetadata.identifier().fullName(), streamProperties);
-    }
-
-    static String sourceTopic(StreamMetadata streamMetadata, Map<String, String> taskProperties) {
-        String sourceTopic = taskProperties.get(MaterializationRuntime.SOURCE_TOPIC_PROPERTY);
-        return sourceTopic == null || sourceTopic.isBlank()
-                ? streamMetadata.identifier().fullName()
-                : sourceTopic;
     }
 
     private static void requireNonNullArgs(TableMaterializationPolicy policy,

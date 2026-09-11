@@ -11,7 +11,6 @@ import io.lakestream.api.materialization.ResolvedMaterialization;
 import io.lakestream.api.materialization.TableCatalog;
 import io.lakestream.api.materialization.TableCatalogType;
 import io.lakestream.api.materialization.TableMaterializationPolicy;
-import io.lakestream.api.materialization.TableMode;
 import io.lakestream.ursa.compaction.CompactTaskManager;
 import io.lakestream.ursa.compaction.metrics.CompactionMetrics;
 import io.lakestream.ursa.compaction.task.CompactStreamTask;
@@ -64,7 +63,7 @@ import lombok.extern.slf4j.Slf4j;
  *   <li>{@link #materialize(MaterializationTask)} looks up the {@link TableMaterializerFactory} for
  *       the stream's effective {@link TableCatalogType} and asks it to
  *       {@link TableMaterializerFactory#create create} a FRESH {@link TableMaterializer} for the task
- *       (plus, when SBT is enabled, a managed Compacted-Object materializer). Materializers are
+ *       (plus, for source compaction tasks, an internal Compacted-Object materializer). Materializers are
  *       single-use (commit()/close() are terminal) and never cached — a partitioned topic's partitions
  *       are compacted concurrently under one stream identity, so a per-stream cache would share one
  *       single-use materializer across threads.</li>
@@ -88,9 +87,9 @@ public class LakehouseMaterializationService implements MaterializationService {
     /** Lazily-created factory for reading native entries through {@link StorageApi}. */
     private volatile EntryProcessFactory entryProcessFactory;
     /**
-     * Lazily-built factory for the SBT (managed) writer. The managed {@code LakehouseWriter}
+     * Lazily-built factory for the internal CO writer. The {@code LakehouseWriter}
      * compacts the same WAL entries into topic-grouped parquet "Compacted Objects" — the stream's own
-     * data — independently of the external (SDT) sink. Always-on for Ursa; gated by {@code sbtEnabled}.
+     * data — independently of the external (SDT) sink. Always enabled for source compaction tasks.
      */
     private volatile LakehouseFactory lakehouseFactory;
 
@@ -161,12 +160,10 @@ public class LakehouseMaterializationService implements MaterializationService {
         StreamIdentifier streamId = streamMetadata.identifier();
         TableCatalog catalog = resolved.catalog();
         TableCatalogType catalogType = catalog.type();
-        // A NONE catalog marks a managed-only (SBT / Ursa-protocol) materialization: SDT is disabled and
-        // no catalog-visible table is configured, so only the internal managed Compacted-Object writer
+        // A NONE catalog marks a storage-only (internal CO / Ursa-protocol) materialization: SDT is disabled and
+        // no catalog-visible table is configured, so only the internal Compacted-Object writer
         // runs. Any other type must have a registered factory for its catalog sink.
         boolean catalogSink = catalogType != TableCatalogType.NONE;
-        boolean factoryOwnsManagedTable = catalogSink
-                && effectiveTableMode(resolved.effectivePolicy()) == TableMode.MANAGED;
         TableMaterializerFactory factory = catalogSink ? factories.get(catalogType) : null;
         if (catalogSink && factory == null) {
             String reason = "No TableMaterializerFactory registered for catalog type " + catalogType;
@@ -190,10 +187,10 @@ public class LakehouseMaterializationService implements MaterializationService {
         // corrupting the writer ("Index N out of bounds" in the Parquet dictionary) and tripping
         // "write() after commit()".
         // Everything is a TableMaterializer: the SDT sink (external Iceberg/Delta or inline ClickHouse)
-        // plus — when SBT is enabled — the managed Compacted-Object writer wrapped as a materializer.
+        // plus the internal Compacted-Object writer for source compaction tasks.
         // writeAndCommit fans the single WAL read pass out to all of them, so a task can sink to
         // multiple destinations at once; task completion is driven from their write results afterwards.
-        // A managed-only (NONE) task has no external sink, so only the managed writer is built.
+        // A storage-only (NONE) task has no external sink, so only the internal CO writer is built.
         List<TableMaterializer<?>> materializers = new ArrayList<>();
         boolean committed = false;
         try {
@@ -211,17 +208,13 @@ public class LakehouseMaterializationService implements MaterializationService {
                 // opening a reader or writing data.
                 ensureOpen();
             }
-            // A MANAGED catalog materializer is the SBT writer. Adding the standalone managed
-            // writer as well would create a second SBT output and write every record twice.
-            if (!factoryOwnsManagedTable) {
-                buildManagedMaterializer(task, task.sourceTopic(), effectiveWriterProperties)
-                        .ifPresent(materializers::add);
-            }
+            buildCompactedObjectMaterializer(task, task.sourceTopic(), effectiveWriterProperties)
+                    .ifPresent(materializers::add);
             ensureOpen();
             if (materializers.isEmpty()) {
                 throw new MaterializationException(ExceptionCode.INTERNAL_ERROR,
                         "No materializer available for stream " + streamId.fullName()
-                                + " (managed-only catalog but the managed writer was disabled or skipped)");
+                                + " (storage-only catalog but the internal CO writer is unavailable)");
             }
             CommitResult result = writeAndCommit(materializers, task, task.sourceTopic());
             committed = true;
@@ -230,7 +223,7 @@ public class LakehouseMaterializationService implements MaterializationService {
                 task.sourceTopic(), streamId.fullName(), result);
             // A group committer runs asynchronously and no longer has ResolvedMaterialization. Carry
             // the exact destination on the task so it commits the files to the table the writer used.
-            if (catalogSink && task.sourceTask() != null) {
+            if (task.sourceTask() != null) {
                 CompactStreamTask sourceTask = task.sourceTask();
                 sourceTask.setProperties(withResolvedMaterialization(
                         sourceTask.getProperties(), resolved));
@@ -266,8 +259,8 @@ public class LakehouseMaterializationService implements MaterializationService {
     /**
      * Reads the source entries for the task's offset range ONCE through {@link StorageApi} and fans
      * each raw {@link GenericEntry} out to every supplied
-     * {@link TableMaterializer}, then commits them all. Every destination — the SDT sink and the SBT
-     * managed Compacted-Object writer alike — is just a materializer, so a single task can sink to
+     * {@link TableMaterializer}, then commits them all. Every destination — the SDT sink and the internal CO
+     * internal Compacted-Object writer alike — is just a materializer, so a single task can sink to
      * multiple destinations from one read pass. Does NOT complete the compaction task; the caller
      * ({@link #materialize}) drives {@link #completeTask} from the committed materializers.
      *
@@ -363,21 +356,17 @@ public class LakehouseMaterializationService implements MaterializationService {
     }
 
     /**
-     * Builds the SBT (managed) materializer for the task's topic, or {@link Optional#empty()} when the
-     * managed workflow should not run. The managed {@code LakehouseWriter} compacts the WAL into
-     * topic-grouped parquet Compacted Objects; it is wrapped as a {@link LakehouseTableMaterializer} so
-     * the write path treats SBT and SDT uniformly. Only used in {@code streamTableMode=EXTERNAL} (in
-     * MANAGED mode the SDT materializer itself is the managed writer); {@code getManagedWriter}
-     * additionally returns empty when {@code sbtEnabled} is false or {@code skipManagedWriter} is set.
+     * Builds the internal CO writer for a source task. It shares the WAL read pass with the
+     * external sink but never registers its files in a table catalog.
      */
-    private Optional<TableMaterializer<?>> buildManagedMaterializer(
+    private Optional<TableMaterializer<?>> buildCompactedObjectMaterializer(
             MaterializationTask task,
             String sourceTopic,
             Map<String, String> effectiveWriterProperties) {
         ensureOpen();
         CompactStreamTask sourceTask = task.sourceTask();
         if (sourceTask == null) {
-            // Unit tests drive materialize() directly without a source task; no managed compaction.
+            // Unit tests drive materialize() directly without a source task; no internal compaction.
             return Optional.empty();
         }
         Properties properties = new Properties();
@@ -388,9 +377,9 @@ public class LakehouseMaterializationService implements MaterializationService {
         LakehouseFactory factory = lakehouseFactory(lakehouseConfig);
         EvolutionPolicy evolutionPolicy = evolutionPolicyFor(
                 task.resolvedMaterialization().catalog().type());
-        Optional<TableMaterializer<?>> materializer = factory.getManagedWriter(
+        Optional<TableMaterializer<?>> materializer = factory.getCompactedObjectWriter(
                         sourceTopic, effectiveWriterProperties)
-                // The managed writer is an AbstractLakehouseWriter; wrap it as
+                // The internal CO writer is an AbstractLakehouseWriter; wrap it as
                 // a materializer with no DLT.
                 .map(writer -> new LakehouseTableMaterializer(
                         (AbstractLakehouseWriter) writer, evolutionPolicy, null));
@@ -409,17 +398,11 @@ public class LakehouseMaterializationService implements MaterializationService {
         }
     }
 
-    private static TableMode effectiveTableMode(TableMaterializationPolicy policy) {
-        return policy.table().flatMap(table -> table.mode()).orElse(TableMode.MANAGED);
-    }
-
     /** Persists the dispatch and table identity needed by the asynchronous group committer. */
     private static Map<String, String> withResolvedMaterialization(
             Map<String, String> properties, ResolvedMaterialization resolved) {
         Map<String, String> result = new HashMap<>(StreamTableNaming.withResolvedTableIdentifier(
                 properties, resolved.tableIdentifier()));
-        result.put(LakehouseConfiguration.STREAM_TABLE_MODE,
-                effectiveTableMode(resolved.effectivePolicy()).name());
         result.put(LakehouseConfiguration.CATALOG_NAME, resolved.catalog().name());
         String lakehouseType = switch (resolved.catalog().type()) {
             case ICEBERG -> LakehouseConfiguration.LakehouseType.ICEBERG.name();
@@ -444,7 +427,7 @@ public class LakehouseMaterializationService implements MaterializationService {
         if (factory != null) {
             return factory;
         }
-        // The managed writer decodes WAL entries with the same source schema service the SDT
+        // The internal CO writer decodes WAL entries with the same source schema service the SDT
         // workflow uses. Read-path metrics are NOOP.
         lakehouseFactory = new LakehouseFactory(
                 lakehouseConfig, runtime.schemaService(), InstrumentProvider.NOOP);
@@ -454,10 +437,10 @@ public class LakehouseMaterializationService implements MaterializationService {
 
     /**
      * Completes the task after both write workflows finish. When either workflow produced file results
-     * (SBT managed parquet and/or SDT external Iceberg/Delta files), the task is persisted as
+     * (internal Parquet CO files and/or SDT external Iceberg/Delta files), the task is persisted as
      * {@code COMPACTED} via {@link CompactionTaskCompleter} so the {@code CompactedTaskRunner} applies
      * the batched commit, advances the offload cursor, and deletes the task. When there are NO file
-     * results (an inline-commit sink such as ClickHouse with SBT disabled), the data is already
+     * results (an inline-commit sink such as ClickHouse with no internal file results), the data is already
      * committed, so the task is retired directly via {@link #retireInlineCommittedTask}.
      *
      * <p>No-op when no {@link CompactTaskManager} / source task is wired (unit tests).
@@ -468,19 +451,18 @@ public class LakehouseMaterializationService implements MaterializationService {
         if (compactTaskManager == null || sourceTask == null) {
             return;
         }
-        // Partition every materializer's write results by type: managed parquet Compacted Objects
-        // (ParquetWriteResult — the SBT path, whether from the standalone managed materializer or a
-        // MANAGED-mode SDT materializer) vs external Iceberg/Delta files (the SDT path). DLT files come
+        // Partition write results into internal Parquet CO files and external Iceberg/Delta files.
+        // Internal files are indexed for stream reads and never committed to table metadata. DLT files come
         // from the external materializer only. Non-Lakehouse sinks (e.g. ClickHouse) commit inline and
         // contribute no IWriteResults.
-        List<IWriteResult> managedResults = new ArrayList<>();
+        List<IWriteResult> compactedObjectResults = new ArrayList<>();
         List<IWriteResult> externalResults = new ArrayList<>();
         List<IWriteResult> dltResults = new ArrayList<>();
         for (TableMaterializer<?> materializer : materializers) {
             if (materializer instanceof LakehouseTableMaterializer lakehouse) {
                 for (IWriteResult wr : orEmpty(lakehouse.lastWriteResults())) {
                     if (wr instanceof ParquetWriteResult) {
-                        managedResults.add(wr);
+                        compactedObjectResults.add(wr);
                     } else {
                         externalResults.add(wr);
                     }
@@ -488,17 +470,17 @@ public class LakehouseMaterializationService implements MaterializationService {
                 dltResults.addAll(orEmpty(lakehouse.lastDltWriteResults()));
             }
         }
-        if (managedResults.isEmpty() && externalResults.isEmpty() && dltResults.isEmpty()) {
-            // Inline-commit sink (e.g. ClickHouse) with SBT disabled: nothing to group-commit.
+        if (compactedObjectResults.isEmpty() && externalResults.isEmpty() && dltResults.isEmpty()) {
+            // Inline-commit sink (e.g. ClickHouse) with no internal file results: nothing to group-commit.
             log.info("Retiring inline-committed task {} for stream {}: no managed or external write results",
                     sourceTask.getTaskName(), task.streamMetadata().identifier().fullName());
             retireInlineCommittedTask(task);
             return;
         }
         CompactionTaskCompleter completer =
-                new CompactionTaskCompleter(compactTaskManager, managedTableSchemaEvolutionEnabled());
+                new CompactionTaskCompleter(compactTaskManager, compactedObjectSchemaEvolutionEnabled());
         try {
-            completer.completeCompaction(sourceTask, managedResults, externalResults, dltResults);
+            completer.completeCompaction(sourceTask, compactedObjectResults, externalResults, dltResults);
         } catch (MaterializationException e) {
             throw e;
         } catch (Exception e) {
@@ -549,9 +531,9 @@ public class LakehouseMaterializationService implements MaterializationService {
         }
     }
 
-    private boolean managedTableSchemaEvolutionEnabled() {
+    private boolean compactedObjectSchemaEvolutionEnabled() {
         return config != null && Boolean.parseBoolean(
-                config.additionalProperties().getOrDefault("managedTableSchemaEvolutionEnabled", "false"));
+                config.additionalProperties().getOrDefault("compactedObjectSchemaEvolutionEnabled", "false"));
     }
 
     /** Test seam: inject a stub {@link EntryReaderProvider} so the read loop runs without storage. */
@@ -560,7 +542,7 @@ public class LakehouseMaterializationService implements MaterializationService {
         this.entryReaderProvider = provider;
     }
 
-    /** Test seam: inject the managed-writer factory without opening a real lakehouse catalog. */
+    /** Test seam: inject the internal CO writer factory without opening a real lakehouse catalog. */
     synchronized void setLakehouseFactory(LakehouseFactory factory) {
         ensureOpen();
         this.lakehouseFactory = factory;
@@ -665,7 +647,7 @@ public class LakehouseMaterializationService implements MaterializationService {
     /**
      * Pulls the entry-level event timestamp out of {@link LakehouseEntryMetadata} when present.
      * Raw entries read straight off the WAL carry no metadata yet (the sink decodes the batch and
-     * resolves per-message metadata internally), so this falls back to {@code 0L} in that case.
+     * resolves per-message metadatan internally), so this falls back to {@code 0L} in that case.
      */
     private static long extractTimestamp(GenericEntry entry) {
         Optional<LakehouseEntryMetadata> metadata = entry.metadata();
@@ -690,11 +672,11 @@ public class LakehouseMaterializationService implements MaterializationService {
     public void close() {
         closed = true;
         EntryProcessFactory sourceFactory;
-        LakehouseFactory managedFactory;
+        LakehouseFactory compactedObjectFactory;
         synchronized (this) {
             sourceFactory = entryProcessFactory;
             entryProcessFactory = null;
-            managedFactory = lakehouseFactory;
+            compactedObjectFactory = lakehouseFactory;
             lakehouseFactory = null;
             entryReaderProvider = null;
             factories.clear();
@@ -706,9 +688,9 @@ public class LakehouseMaterializationService implements MaterializationService {
                 log.warn("Failed to close entry process factory during shutdown", e);
             }
         }
-        if (managedFactory != null) {
+        if (compactedObjectFactory != null) {
             try {
-                managedFactory.close();
+                compactedObjectFactory.close();
             } catch (Exception e) {
                 log.warn("Failed to close lakehouse factory during shutdown", e);
             }

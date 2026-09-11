@@ -183,18 +183,17 @@ TableMaterializationPolicy on Stream      (OVERRIDE — partial)
 A stream is materialized **iff** the resolved policy has `catalogRef` set
 (from either layer) **and** `enabled` is not explicitly `false` at stream
 level. An explicit stream `tableIdentifier` wins over namespace `tableNaming`.
-Without either, MANAGED tables use the storage stream name while EXTERNAL/CUSTOM
-tables use source logical-name metadata and fall back to the stream name. Source
+Without either, tables use source logical-name metadata and fall back to the stream name. Source
 schema declaration stays on `StreamMetadata.schema()` (`SchemaConfig`) — the
 policy does not duplicate it.
 
 The resolved table identifier is the catalog target; it never replaces storage identity. Internal
 Compacted Objects and Oxia indexes remain keyed by the canonical partition log and numeric stream
-ID. An EXTERNAL/CUSTOM SDT writer, its DLT writer, and its committer all use the same resolved table
-identifier. A MANAGED writer still receives the canonical partition log for SBT object layout and
-partition metadata while carrying the catalog identifier separately. When SBT and SDT are both
-enabled, one source read fans out to independent writers rather than sharing an identity or writing
-through two managed writers.
+ID. An SDT writer, its DLT writer, and its committer all use the same resolved table
+identifier. The internal CO writer always uses the canonical partition log for object layout and
+partition metadata. With an SDT configured, one source read feeds both the internal storage writer
+and the external destination writer. Internal compaction also runs without an SDT.
+
 
 | Concept | Owner | Lifecycle | Carries |
 |---|---|---|---|
@@ -286,7 +285,7 @@ New types under `io.lakestream.api.materialization`:
   `ResolvedMaterialization`
 - **Inside `FrameworkConf`**: `WriteMode`, `StartPosition`, `ErrorHandling`,
   `CommitConfig`
-- **Inside `TableConf`**: `TableMode`, `PartitionSpec`, `PartitionTransform`,
+- **Inside `TableConf`**: `PartitionSpec`, `PartitionTransform`,
   `SortColumn`, `RetentionConfig`, `Compression`
 
 Source schema declaration stays on `StreamMetadata.schema()`

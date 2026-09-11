@@ -16,7 +16,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
-import io.lakestream.ursa.lakehouse.IcebergCommitter;
 import io.lakestream.ursa.lakehouse.LakehouseConfiguration;
 import io.lakestream.ursa.lakehouse.exception.IcebergTableCorruptedException;
 import io.lakestream.ursa.lakehouse.exception.LakehouseException;
@@ -42,7 +41,6 @@ import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -300,15 +298,9 @@ public class IcebergTable {
         }
     }
 
-    public long commit(IcebergCommitter.IcebergCommitType lakehouseWriterType,
-                       List<ParquetFileStat> fileStats) throws LakehouseException {
+    public long commit(List<ParquetFileStat> fileStats) throws LakehouseException {
         try {
-            switch (lakehouseWriterType) {
-                case MANAGED -> commitManaged(fileStats);
-                case EXTERNAL_ICEBERG -> commitExternal(fileStats);
-                default ->
-                        throw new IllegalArgumentException("Unsupported lakehouse writer type: " + lakehouseWriterType);
-            }
+            commitExternal(fileStats);
         } catch (Throwable e) {
             if (isTableCorruptedException(e)) {
                 throw new IcebergTableCorruptedException("Iceberg table seems corrupted: " + identifier, e);
@@ -401,19 +393,6 @@ public class IcebergTable {
         updateUrsaKeys(updateProperties, newManagedKeys);
 
         updateProperties.commit();
-    }
-
-    public void commitManaged(List<ParquetFileStat> fileStats) throws LakehouseException {
-        loadTable();
-        logSnapshotInfo();
-        AppendFiles appendFiles = table.newAppend();
-        for (ParquetFileStat fileStat : fileStats) {
-            log.info("add filePath: {}, partitionValues: {}, fileSize: {}", fileStat.getFilePath(),
-                fileStat.getPartitionValues(), fileStat.getFileSize());
-            appendFiles.appendFile(fileStat.toDataFile(table));
-        }
-        appendTags(appendFiles, fileStats);
-        appendFiles.commit();
     }
 
     public void commitExternal(List<ParquetFileStat> fileStats) throws LakehouseException {

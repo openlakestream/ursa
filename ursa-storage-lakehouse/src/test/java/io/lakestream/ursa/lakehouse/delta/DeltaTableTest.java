@@ -46,12 +46,13 @@ public class DeltaTableTest {
     public void testDeltaTable_Properties() throws Exception {
         Properties properties = new Properties();
         properties.put("storagePath", path.toString());
+        properties.put("directExternalStoragePath", path.toString());
         properties.put("partitionKey", "none");
 
 
         LakehouseConfiguration config = new LakehouseConfiguration(properties);
         String topic = "testDeltaTable_Properties";
-        ManagedDeltaTable deltaManagedTable = new ManagedDeltaTable(config, topic);
+        DirectExternalTable deltaManagedTable = new DirectExternalTable(config, topic);
 
         StructType schema = new StructType().add("id", LongType.LONG);
 
@@ -113,11 +114,12 @@ public class DeltaTableTest {
     public void testDelTable_getTableAddActionIterator() throws Exception {
         Properties properties = new Properties();
         properties.put("storagePath", path.toString());
+        properties.put("directExternalStoragePath", path.toString());
         properties.put("partitionKey", "none");
 
         LakehouseConfiguration config = new LakehouseConfiguration(properties);
         String topic = "testDelTable_getTableAddActionIterator";
-        ManagedDeltaTable deltaManagedTable = new ManagedDeltaTable(config, topic);
+        DirectExternalTable deltaManagedTable = new DirectExternalTable(config, topic);
 
         StructType schema = new StructType().add("id", LongType.LONG);
 
@@ -131,7 +133,7 @@ public class DeltaTableTest {
             tags.put("endOffset", String.valueOf(i + 1));
             ParquetFileStat parquetFileStat =
                 new ParquetFileStat(file, path + "/" + file, 100L, "", Collections.emptyMap(), tags);
-            deltaManagedTable.commit(Collections.singletonList(parquetFileStat));
+            deltaManagedTable.commit(externalFiles(Collections.singletonList(parquetFileStat)));
         }
 
         //The iterator is reversed
@@ -162,12 +164,13 @@ public class DeltaTableTest {
     public void testDelTable_getTableAddActionIteratorFailsWhenCheckpointInterrupted() throws Exception {
         Properties properties = new Properties();
         properties.put("storagePath", path.toString());
+        properties.put("directExternalStoragePath", path.toString());
         properties.put("partitionKey", "none");
 
         LakehouseConfiguration config = new LakehouseConfiguration(properties);
         String topic = "testDelTable_getTableAddActionIteratorFailsWhenCheckpointInterrupted";
-        InterruptedCheckpointManagedDeltaTable deltaManagedTable =
-            new InterruptedCheckpointManagedDeltaTable(config, topic, 100L);
+        InterruptedCheckpointDirectExternalTable deltaManagedTable =
+            new InterruptedCheckpointDirectExternalTable(config, topic, 100L);
 
         StructType schema = new StructType().add("id", LongType.LONG);
         deltaManagedTable.createDeltaTable(0L, schema);
@@ -180,7 +183,7 @@ public class DeltaTableTest {
             tags.put("endOffset", String.valueOf(i + 1));
             ParquetFileStat parquetFileStat =
                 new ParquetFileStat(file, path + "/" + file, 100L, "", Collections.emptyMap(), tags);
-            deltaManagedTable.commit(Collections.singletonList(parquetFileStat));
+            deltaManagedTable.commit(externalFiles(Collections.singletonList(parquetFileStat)));
         }
 
         RuntimeException exception = null;
@@ -212,12 +215,13 @@ public class DeltaTableTest {
     public void testDelTableCombineCommit_getTableAddActionIterator() throws Exception {
         Properties properties = new Properties();
         properties.put("storagePath", path.toString());
+        properties.put("directExternalStoragePath", path.toString());
         properties.put("partitionKey", "none");
 
 
         LakehouseConfiguration config = new LakehouseConfiguration(properties);
         String topic = "testDelTableCombineCommit_getTableAddActionIterator";
-        ManagedDeltaTable deltaManagedTable = new ManagedDeltaTable(config, topic);
+        DirectExternalTable deltaManagedTable = new DirectExternalTable(config, topic);
 
         StructType schema = new StructType().add("id", LongType.LONG);
 
@@ -234,7 +238,7 @@ public class DeltaTableTest {
                 new ParquetFileStat(file, path + "/" + file, 100L, "", Collections.emptyMap(), tags);
             parquetFileStats.add(parquetFileStat);
             if (parquetFileStats.size() == 10) {
-                deltaManagedTable.commit(parquetFileStats);
+                deltaManagedTable.commit(externalFiles(parquetFileStats));
                 parquetFileStats.clear();
             }
         }
@@ -263,12 +267,12 @@ public class DeltaTableTest {
         tableAddActionIterator.close();
     }
 
-    private static final class InterruptedCheckpointManagedDeltaTable extends ManagedDeltaTable {
+    private static final class InterruptedCheckpointDirectExternalTable extends DirectExternalTable {
 
         private final long interruptedCheckpointVersion;
         private Path corruptedCheckpointFile;
 
-        private InterruptedCheckpointManagedDeltaTable(LakehouseConfiguration config, String parentTopic,
+        private InterruptedCheckpointDirectExternalTable(LakehouseConfiguration config, String parentTopic,
                                                     long interruptedCheckpointVersion) {
             super(config, parentTopic);
             this.interruptedCheckpointVersion = interruptedCheckpointVersion;
@@ -316,11 +320,12 @@ public class DeltaTableTest {
     public void testDelTableMultiStreamId_getTableAddActionIterator() throws Exception {
         Properties properties = new Properties();
         properties.put("storagePath", path.toString());
+        properties.put("directExternalStoragePath", path.toString());
         properties.put("partitionKey", "none");
 
         LakehouseConfiguration config = new LakehouseConfiguration(properties);
         String topic = "testDelTableMultiStreamId_getTableAddActionIterator";
-        ManagedDeltaTable deltaManagedTable = new ManagedDeltaTable(config, topic);
+        DirectExternalTable deltaManagedTable = new DirectExternalTable(config, topic);
 
         StructType schema = new StructType().add("id", LongType.LONG);
         deltaManagedTable.createDeltaTable(0L, schema);
@@ -341,7 +346,7 @@ public class DeltaTableTest {
             parquetFileStats.add(parquetFileStat);
 
             if (parquetFileStats.size() == 10) {
-                deltaManagedTable.commit(parquetFileStats);
+                deltaManagedTable.commit(externalFiles(parquetFileStats));
                 parquetFileStats.clear();
             }
         }
@@ -386,6 +391,7 @@ public class DeltaTableTest {
     public void testIsTheCompactStreamTaskCommitted_WithTopicTag_HigherStreamId() throws Exception {
         Properties properties = new Properties();
         properties.put("storagePath", path.toString());
+        properties.put("directExternalStoragePath", path.toString());
         properties.put("partitionKey", "none");
 
         LakehouseConfiguration config = new LakehouseConfiguration(properties);
@@ -393,7 +399,7 @@ public class DeltaTableTest {
         DeltaCommitter deltaCommitter = new DeltaCommitter(config, topic);
 
         StructType schema = new StructType().add("id", LongType.LONG);
-        ManagedDeltaTable deltaManagedTable = new ManagedDeltaTable(config, topic);
+        DirectExternalTable deltaManagedTable = new DirectExternalTable(config, topic);
         deltaManagedTable.createDeltaTable(0L, schema);
 
         // Add files with topic tags
@@ -404,7 +410,7 @@ public class DeltaTableTest {
         tags.put("endOffset", "200");
         ParquetFileStat parquetFileStat =
             new ParquetFileStat("file1.parquet", path + "/file1.parquet", 1000L, "", Collections.emptyMap(), tags);
-        deltaManagedTable.commit(Collections.singletonList(parquetFileStat));
+        deltaManagedTable.commit(externalFiles(Collections.singletonList(parquetFileStat)));
 
         // Create a task with lower streamId - should be considered committed
         CompactStreamTask task = new CompactStreamTask();
@@ -421,6 +427,7 @@ public class DeltaTableTest {
     public void testIsTheCompactStreamTaskCommitted_WithTopicTag_SameStreamIdHigherOffset() throws Exception {
         Properties properties = new Properties();
         properties.put("storagePath", path.toString());
+        properties.put("directExternalStoragePath", path.toString());
         properties.put("partitionKey", "none");
 
         LakehouseConfiguration config = new LakehouseConfiguration(properties);
@@ -428,7 +435,7 @@ public class DeltaTableTest {
         DeltaCommitter deltaCommitter = new DeltaCommitter(config, topic);
 
         StructType schema = new StructType().add("id", LongType.LONG);
-        ManagedDeltaTable deltaManagedTable = new ManagedDeltaTable(config, topic);
+        DirectExternalTable deltaManagedTable = new DirectExternalTable(config, topic);
         deltaManagedTable.createDeltaTable(0L, schema);
 
         // Add files with topic tags
@@ -439,7 +446,7 @@ public class DeltaTableTest {
         tags.put("endOffset", "200");
         ParquetFileStat parquetFileStat =
             new ParquetFileStat("file1.parquet", path + "/file1.parquet", 1000L, "", Collections.emptyMap(), tags);
-        deltaManagedTable.commit(Collections.singletonList(parquetFileStat));
+        deltaManagedTable.commit(externalFiles(Collections.singletonList(parquetFileStat)));
 
         // Create a task with same streamId but lower offset - should be considered committed
         CompactStreamTask task = new CompactStreamTask();
@@ -456,6 +463,7 @@ public class DeltaTableTest {
     public void testIsTheCompactStreamTaskCommitted_WithTopicTag_SameStreamIdEqualOrHigherOffset() throws Exception {
         Properties properties = new Properties();
         properties.put("storagePath", path.toString());
+        properties.put("directExternalStoragePath", path.toString());
         properties.put("partitionKey", "none");
 
         LakehouseConfiguration config = new LakehouseConfiguration(properties);
@@ -463,7 +471,7 @@ public class DeltaTableTest {
         DeltaCommitter deltaCommitter = new DeltaCommitter(config, topic);
 
         StructType schema = new StructType().add("id", LongType.LONG);
-        ManagedDeltaTable deltaManagedTable = new ManagedDeltaTable(config, topic);
+        DirectExternalTable deltaManagedTable = new DirectExternalTable(config, topic);
         deltaManagedTable.createDeltaTable(0L, schema);
 
         // Add files with topic tags
@@ -474,7 +482,7 @@ public class DeltaTableTest {
         tags.put("endOffset", "200");
         ParquetFileStat parquetFileStat =
             new ParquetFileStat("file1.parquet", path + "/file1.parquet", 1000L, "", Collections.emptyMap(), tags);
-        deltaManagedTable.commit(Collections.singletonList(parquetFileStat));
+        deltaManagedTable.commit(externalFiles(Collections.singletonList(parquetFileStat)));
 
         // Test 1: Task with same streamId and startOffset = endOffset - should NOT be committed
         CompactStreamTask task1 = new CompactStreamTask();
@@ -501,6 +509,7 @@ public class DeltaTableTest {
     public void testIsTheCompactStreamTaskCommitted_WithTopicTag_LowerStreamId() throws Exception {
         Properties properties = new Properties();
         properties.put("storagePath", path.toString());
+        properties.put("directExternalStoragePath", path.toString());
         properties.put("partitionKey", "none");
 
         LakehouseConfiguration config = new LakehouseConfiguration(properties);
@@ -508,7 +517,7 @@ public class DeltaTableTest {
         DeltaCommitter deltaCommitter = new DeltaCommitter(config, topic);
 
         StructType schema = new StructType().add("id", LongType.LONG);
-        ManagedDeltaTable deltaManagedTable = new ManagedDeltaTable(config, topic);
+        DirectExternalTable deltaManagedTable = new DirectExternalTable(config, topic);
         deltaManagedTable.createDeltaTable(0L, schema);
 
         // Add files with topic tags
@@ -519,7 +528,7 @@ public class DeltaTableTest {
         tags.put("endOffset", "200");
         ParquetFileStat parquetFileStat =
             new ParquetFileStat("file1.parquet", path + "/file1.parquet", 1000L, "", Collections.emptyMap(), tags);
-        deltaManagedTable.commit(Collections.singletonList(parquetFileStat));
+        deltaManagedTable.commit(externalFiles(Collections.singletonList(parquetFileStat)));
 
         // Create a task with higher streamId - should NOT be considered committed
         CompactStreamTask task = new CompactStreamTask();
@@ -536,6 +545,7 @@ public class DeltaTableTest {
     public void testIsTheCompactStreamTaskCommitted_WithTopicTag_DifferentTopic() throws Exception {
         Properties properties = new Properties();
         properties.put("storagePath", path.toString());
+        properties.put("directExternalStoragePath", path.toString());
         properties.put("partitionKey", "none");
 
         LakehouseConfiguration config = new LakehouseConfiguration(properties);
@@ -543,7 +553,7 @@ public class DeltaTableTest {
         DeltaCommitter deltaCommitter = new DeltaCommitter(config, topic);
 
         StructType schema = new StructType().add("id", LongType.LONG);
-        ManagedDeltaTable deltaManagedTable = new ManagedDeltaTable(config, topic);
+        DirectExternalTable deltaManagedTable = new DirectExternalTable(config, topic);
         deltaManagedTable.createDeltaTable(0L, schema);
 
         // Add files with topic tags
@@ -554,7 +564,7 @@ public class DeltaTableTest {
         tags.put("endOffset", "200");
         ParquetFileStat parquetFileStat =
             new ParquetFileStat("file1.parquet", path + "/file1.parquet", 1000L, "", Collections.emptyMap(), tags);
-        deltaManagedTable.commit(Collections.singletonList(parquetFileStat));
+        deltaManagedTable.commit(externalFiles(Collections.singletonList(parquetFileStat)));
 
         // Create a task with same streamId but different topic - should NOT be considered committed
         CompactStreamTask task = new CompactStreamTask();
@@ -571,6 +581,7 @@ public class DeltaTableTest {
     public void testIsTheCompactStreamTaskCommitted_EarlyTerminationWithIterator() throws Exception {
         Properties properties = new Properties();
         properties.put("storagePath", path.toString());
+        properties.put("directExternalStoragePath", path.toString());
         properties.put("partitionKey", "none");
 
         LakehouseConfiguration config = new LakehouseConfiguration(properties);
@@ -578,7 +589,7 @@ public class DeltaTableTest {
         DeltaCommitter deltaCommitter = new DeltaCommitter(config, topic);
 
         StructType schema = new StructType().add("id", LongType.LONG);
-        ManagedDeltaTable deltaManagedTable = new ManagedDeltaTable(config, topic);
+        DirectExternalTable deltaManagedTable = new DirectExternalTable(config, topic);
         deltaManagedTable.createDeltaTable(0L, schema);
 
         // Add multiple files with different streamIds (reverse order to test iterator)
@@ -593,7 +604,7 @@ public class DeltaTableTest {
                 String fileName = String.format("file-%d-%d.parquet", streamId, offset);
                 ParquetFileStat stat =
                     new ParquetFileStat(fileName, path + "/" + fileName, 1000L, "", Collections.emptyMap(), tags);
-                deltaManagedTable.commit(Collections.singletonList(stat));
+                deltaManagedTable.commit(externalFiles(Collections.singletonList(stat)));
             }
         }
 
@@ -613,6 +624,7 @@ public class DeltaTableTest {
     public void testIsTheCompactStreamTaskCommitted_MixedTopicAndOldLogic() throws Exception {
         Properties properties = new Properties();
         properties.put("storagePath", path.toString());
+        properties.put("directExternalStoragePath", path.toString());
         properties.put("partitionKey", "none");
 
         LakehouseConfiguration config = new LakehouseConfiguration(properties);
@@ -620,7 +632,7 @@ public class DeltaTableTest {
         DeltaCommitter deltaCommitter = new DeltaCommitter(config, topic);
 
         StructType schema = new StructType().add("id", LongType.LONG);
-        ManagedDeltaTable deltaManagedTable = new ManagedDeltaTable(config, topic);
+        DirectExternalTable deltaManagedTable = new DirectExternalTable(config, topic);
         deltaManagedTable.createDeltaTable(0L, schema);
 
         // Add file with new topic-based tags
@@ -645,7 +657,7 @@ public class DeltaTableTest {
         List<ParquetFileStat> files = new ArrayList<>();
         files.add(newFile);
         files.add(oldFile);
-        deltaManagedTable.commit(files);
+        deltaManagedTable.commit(externalFiles(files));
 
         // Test 1: Task that matches the new logic (with topic)
         CompactStreamTask task1 = new CompactStreamTask();
@@ -672,6 +684,7 @@ public class DeltaTableTest {
     public void testIsTheCompactStreamTaskCommitted_WithNullAndEmptyTags() throws Exception {
         Properties properties = new Properties();
         properties.put("storagePath", path.toString());
+        properties.put("directExternalStoragePath", path.toString());
         properties.put("partitionKey", "none");
 
         LakehouseConfiguration config = new LakehouseConfiguration(properties);
@@ -679,7 +692,7 @@ public class DeltaTableTest {
         DeltaCommitter deltaCommitter = new DeltaCommitter(config, topic);
 
         StructType schema = new StructType().add("id", LongType.LONG);
-        ManagedDeltaTable deltaManagedTable = new ManagedDeltaTable(config, topic);
+        DirectExternalTable deltaManagedTable = new DirectExternalTable(config, topic);
         deltaManagedTable.createDeltaTable(0L, schema);
 
         // Add file with valid tags
@@ -704,7 +717,7 @@ public class DeltaTableTest {
         files.add(validFile);
         files.add(emptyTagsFile);
         files.add(nullTagsFile);
-        deltaManagedTable.commit(files);
+        deltaManagedTable.commit(externalFiles(files));
 
         // Test that valid task is still found despite null/empty tags in other files
         CompactStreamTask task = new CompactStreamTask();
@@ -715,5 +728,14 @@ public class DeltaTableTest {
 
         boolean result = deltaCommitter.isTheCompactStreamTaskCommitted(task);
         assertTrue(result, "Task should be considered committed based on valid file");
+    }
+    private static List<ParquetFileStat> externalFiles(List<ParquetFileStat> files) {
+        List<ParquetFileStat> results = new ArrayList<>();
+        for (ParquetFileStat file : files) {
+            ParquetFileStat result = new ParquetFileStat(null, null, 0L, null, Map.of(), file.getTags());
+            result.setDeltaFiles(List.of(file));
+            results.add(result);
+        }
+        return results;
     }
 }

@@ -7,7 +7,6 @@ package io.lakestream.ursa.lakehouse.compact;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AtomicDouble;
-import io.lakestream.api.materialization.TableMode;
 import io.lakestream.ursa.compaction.CompactTaskManager;
 import io.lakestream.ursa.compaction.metrics.CompactionMetrics;
 import io.lakestream.ursa.compaction.task.CompactStreamTask;
@@ -43,7 +42,7 @@ public class LakehouseCompactionWorker implements CompactionTaskProcessor {
     private final CompactTaskManager compactTaskManager;
     private final CompactionMetrics compactionMetrics;
     private final AtomicDouble avgEntrySize = new AtomicDouble(1024);
-    private final boolean managedTableSchemaEvolutionEnabled;
+    private final boolean compactedObjectSchemaEvolutionEnabled;
     private final boolean skipMarkerMessages;
     private final long readTimeoutSeconds;
     private final long maxWaitForTxnResolutionSeconds;
@@ -66,8 +65,8 @@ public class LakehouseCompactionWorker implements CompactionTaskProcessor {
         this.entryReaderFactory = entryReaderFactory;
         this.compactTaskManager = compactTaskManager;
         this.compactionMetrics = metrics;
-        this.managedTableSchemaEvolutionEnabled = Boolean.parseBoolean(storageConfig
-            .getProperties().getOrDefault("managedTableSchemaEvolutionEnabled", "false").toString());
+        this.compactedObjectSchemaEvolutionEnabled = Boolean.parseBoolean(storageConfig
+            .getProperties().getOrDefault("compactedObjectSchemaEvolutionEnabled", "false").toString());
         this.skipMarkerMessages = Boolean.parseBoolean(storageConfig.getProperties()
             .getOrDefault("skipMarkerMessages", "false").toString());
         this.readTimeoutSeconds = Long.parseLong(storageConfig.getProperties()
@@ -77,7 +76,7 @@ public class LakehouseCompactionWorker implements CompactionTaskProcessor {
             .getOrDefault("walReadMaxWaitForTxnResolutionSeconds",
                 String.valueOf(EntryReaderOptions.DEFAULT_MAX_WAIT_FOR_TXN_RESOLUTION_SECONDS)).toString());
         this.taskCompleter =
-            new CompactionTaskCompleter(compactTaskManager, managedTableSchemaEvolutionEnabled);
+            new CompactionTaskCompleter(compactTaskManager, compactedObjectSchemaEvolutionEnabled);
     }
 
     public void doCompact(CompactStreamTask task) throws Exception {
@@ -96,24 +95,24 @@ public class LakehouseCompactionWorker implements CompactionTaskProcessor {
             k -> System.currentTimeMillis());
         var entryReaderOptions = new EntryReaderOptions(skipMarkerMessages, readTimeoutSeconds,
             firstAttemptTimeMs, maxWaitForTxnResolutionSeconds);
-        Optional<LakehouseRecordWriter<GenericEntry>> managedWriter = Optional.empty();
+        Optional<LakehouseRecordWriter<GenericEntry>> compactedObjectWriter = Optional.empty();
         Optional<LakehouseRecordWriter<GenericEntry>> externalWriter = Optional.empty();
         Optional<LakehouseRecordWriter<FailureMessage>> dltWriter = Optional.empty();
         long totalReadSize = 0;
         try (var reader =
                  entryReaderFactory.createEntryReader(topic, streamId, startOffset, endOffset, avgEntrySize.get(),
                      entryReaderOptions)) {
-            managedWriter = lakehouseFactory.getManagedWriter(topic, propertiesForWriter);
+            compactedObjectWriter = lakehouseFactory.getCompactedObjectWriter(topic, propertiesForWriter);
             externalWriter = lakehouseFactory.getExternalWriter(topic, propertiesForWriter);
             if (externalWriter.isPresent()) {
                 // Legacy workers create writers before policy resolution. Resolve the SDT destination
                 // now and persist it on the task so the asynchronous committer uses the same identity.
-                // Do this only after constructing the SBT writer so SDT naming cannot affect its path.
+                // Do this only after constructing the internal CO writer so SDT naming cannot affect its path.
                 Properties namingProperties = new Properties();
                 namingProperties.putAll(propertiesForWriter);
                 Map<String, String> resolvedProperties = StreamTableNaming.withResolvedTableIdentifier(
                         propertiesForWriter,
-                        StreamTableNaming.resolveForWriter(topic, namingProperties, TableMode.EXTERNAL));
+                        StreamTableNaming.resolveForWriter(topic, namingProperties));
                 propertiesForWriter.clear();
                 propertiesForWriter.putAll(resolvedProperties);
                 task.setProperties(resolvedProperties);
@@ -139,9 +138,9 @@ public class LakehouseCompactionWorker implements CompactionTaskProcessor {
                         var genericEntry = new GenericEntry(ge.entry().retainedDuplicate(), ge.metadata());
                         externalWriter.get().write(genericEntry);
                     }
-                    if (managedWriter.isPresent()) {
+                    if (compactedObjectWriter.isPresent()) {
                         var genericEntry = new GenericEntry(ge.entry().retainedDuplicate(), ge.metadata());
-                        managedWriter.get().write(genericEntry);
+                        compactedObjectWriter.get().write(genericEntry);
                     }
                     compactionMetrics.getWriteMessagesToParquetLatency()
                         .recordSuccess(System.nanoTime() - writeStartTime);
@@ -151,8 +150,8 @@ public class LakehouseCompactionWorker implements CompactionTaskProcessor {
                     ge.entry().payload().release();
                 }
             }
-            List<IWriteResult> managedResult = managedWriter.isPresent()
-                ? managedWriter.get().close() : Collections.emptyList();
+            List<IWriteResult> managedResult = compactedObjectWriter.isPresent()
+                ? compactedObjectWriter.get().close() : Collections.emptyList();
             List<IWriteResult> externalResult = externalWriter.isPresent()
                     ? externalWriter.get().close() : Collections.emptyList();
             List<IWriteResult> externalDLTResult =
@@ -169,8 +168,8 @@ public class LakehouseCompactionWorker implements CompactionTaskProcessor {
         } catch (Throwable e) {
             // close resource and ignore the results
             try {
-                if (managedWriter.isPresent()) {
-                    managedWriter.get().close();
+                if (compactedObjectWriter.isPresent()) {
+                    compactedObjectWriter.get().close();
                 }
                 externalWriter.ifPresent(w -> {
                     try {

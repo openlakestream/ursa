@@ -191,7 +191,7 @@ public class CompactionWorker implements Runnable {
                         try {
                             if (config != null && config.isMaterializationEnabled()) {
                                 // Primary path: dispatch through the sink-neutral materialization SPI
-                                // (unified SBT + SDT). The legacy internal-compaction call below is the
+                                // (unified internal CO + SDT). The legacy internal-compaction call below is the
                                 // flag-controlled fallback only.
                                 maybeMaterialize(validCompactTask);
                             } else {

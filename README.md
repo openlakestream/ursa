@@ -8,13 +8,11 @@ Ursa Storage introduces log and stream as first-class storage primitives for the
 
 The storage is designed with the following principles.
 
-### Stream-Table Duality
+### Stream Storage and Table Materialization
 
-The core concept in Ursa, where data simultaneously exists as both a stream (for real-time streaming) and a table (for analytical queries). This duality:
-- Eliminates the need for separate streaming and batch storage systems
-- Provides unified data access through either the Streaming API or Table API 
-- Reduces data duplication and movement
-- Enables seamless data processing for both streaming and batch workloads
+Ursa retains stream records in WAL and Compacted Objects with an Offset Index for streaming reads
+and replay. Optional table materialization delivers records into external analytical tables whose
+files and lifecycle are independent of internal stream storage.
 
 ### Diskless & Leaderless Architecture
 
@@ -25,13 +23,11 @@ By turning any object, block, or file store into shared log or stream storage, U
 - Lower operational complexity (no leader elections or rebalancing)
 - Rebalance-free architecture for event brokers
 
-### Zero-ETL Design
+### Integrated Table Delivery
 
-An architectural approach that eliminates the need for separate ETL processes between streaming data and lakehouse tables:
-- Direct writes to lakehouse tables from streaming ingestion
-- No intermediate staging areas or connectors
-- A single copy of data serving both streaming and analytics
-- Simplified data governance and lineage tracking
+Background materialization delivers stream records to external tables using the same WAL read pass
+as internal compaction. Applications can consume retained records through the stream API and query
+the delivered copy through the destination table's APIs.
 
 ## Key Features
 

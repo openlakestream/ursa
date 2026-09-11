@@ -55,7 +55,6 @@ class UCExternalTableTest {
         props.put("unityCatalogUri", "http://localhost:8080");
         props.put("unityCatalogName", "test-catalog");
         props.put("mockedUnityCatalogRootStorage", tempDir.toString());
-        props.put("streamTableMode", "EXTERNAL");
         config = new LakehouseConfiguration(props);
     }
 
@@ -221,7 +220,6 @@ class UCExternalTableTest {
         alphaProps.put("storagePath", tempDir.toString());
         alphaProps.put("partitionKey", "none");
         alphaProps.put("mockUnityCatalog", "true");
-        alphaProps.put("streamTableMode", "EXTERNAL");
         alphaProps.put("catalog.name", "alpha");
         alphaProps.put("delta.catalog.alpha.unityCatalogName", "uc-alpha");
         alphaProps.put("delta.catalog.alpha.unityCatalogUri", "http://localhost:8080");
@@ -231,7 +229,6 @@ class UCExternalTableTest {
         betaProps.put("storagePath", tempDir.toString());
         betaProps.put("partitionKey", "none");
         betaProps.put("mockUnityCatalog", "true");
-        betaProps.put("streamTableMode", "EXTERNAL");
         betaProps.put("catalog.name", "beta");
         betaProps.put("delta.catalog.beta.unityCatalogName", "uc-beta");
         betaProps.put("delta.catalog.beta.unityCatalogUri", "http://localhost:8080");

@@ -103,7 +103,6 @@ class ExternalDeltaTableFactoryTest {
     @Test
     void testGetDeltaTableReturnsDirectExternalTableWhenUnityCatalogDisabledInExternalMode() {
         Properties props = new Properties();
-        props.put("streamTableMode", "EXTERNAL");
         props.put("directExternalStoragePath", "/tmp/test");
         LakehouseConfiguration config = new LakehouseConfiguration(props);
 

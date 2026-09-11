@@ -1054,7 +1054,7 @@ public class LogCursorImpl implements LogCursor {
             }
             // Skip v2 index entries
             try {
-                if (reader.getManagedTableFileIndex(prefetchedParquetIndex).isPresent()) {
+                if (reader.getCompactedObjectFileIndex(prefetchedParquetIndex).isPresent()) {
                     return CompletableFuture.completedFuture(readOffset);
                 }
             } catch (IllegalArgumentException e) {

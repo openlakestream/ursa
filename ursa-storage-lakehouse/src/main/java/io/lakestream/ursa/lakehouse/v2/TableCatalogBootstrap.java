@@ -15,7 +15,6 @@ import io.lakestream.api.materialization.TableCatalog;
 import io.lakestream.api.materialization.TableCatalogType;
 import io.lakestream.api.materialization.TableConf;
 import io.lakestream.api.materialization.TableMaterializationPolicy;
-import io.lakestream.api.materialization.TableMode;
 import io.lakestream.api.materialization.TableNaming;
 import io.lakestream.api.materialization.WriteMode;
 import io.lakestream.ursa.compaction.DynamicConfigs;
@@ -178,7 +177,6 @@ public final class TableCatalogBootstrap {
         String catalogName = catalog.name();
         TableCatalogType catalogType = catalog.type();
         TableMaterializationPolicy policy = synthesized.get().policy();
-        TableMode mode = policy.table().flatMap(TableConf::mode).orElse(TableMode.EXTERNAL);
         try {
             streamCatalog.registerTableCatalog(catalog).join();
             registered.add(catalogName);
@@ -199,8 +197,8 @@ public final class TableCatalogBootstrap {
             // metadata is touched; catalog-side resolution falls back to it for any namespace.
             try {
                 streamCatalog.setClusterDefaultMaterialization(policy).join();
-                log.info("default-policy bridge: cluster-wide default → catalog {} ({}), mode {}",
-                        catalogName, catalogType, mode);
+                log.info("default-policy bridge: cluster-wide default → catalog {} ({})",
+                        catalogName, catalogType);
             } catch (RuntimeException e) {
                 log.warn("default-policy bridge: failed to set cluster-wide default materialization", e);
                 errors.add("cluster-default");
@@ -209,14 +207,14 @@ public final class TableCatalogBootstrap {
         }
         try {
             streamCatalog.createNamespace(new Namespace(namespace, Map.of(), Optional.of(policy))).join();
-            log.info("default-policy bridge: namespace {} → catalog {} ({}), mode {}",
-                    namespace, catalogName, catalogType, mode);
+            log.info("default-policy bridge: namespace {} → catalog {} ({})",
+                    namespace, catalogName, catalogType);
         } catch (CompletionException ce) {
             if (ce.getCause() instanceof AlreadyExistsException) {
                 try {
                     streamCatalog.setNamespaceMaterialization(namespace, policy).join();
-                    log.info("default-policy bridge: namespace {} → catalog {} ({}), mode {} (updated existing)",
-                            namespace, catalogName, catalogType, mode);
+                    log.info("default-policy bridge: namespace {} → catalog {} ({}) (updated existing)",
+                            namespace, catalogName, catalogType);
                 } catch (RuntimeException e) {
                     log.warn("default-policy bridge: failed to set namespace materialization for {}",
                             namespace, e);
@@ -238,9 +236,9 @@ public final class TableCatalogBootstrap {
      * lakehouse config, or {@link Optional#empty()} when {@code lakehouseType} is unset/unsupported.
      * Shared by the startup default-policy bridge (which registers the catalog and scopes the policy to
      * a namespace / cluster) and the per-task compatibility resolution
-     * ({@link #resolveFromProperties}). The policy is EXTERNAL/MANAGED per {@code streamTableMode}
-     * and enabled. Explicit {@code tableNameTemplate} configuration is preserved; otherwise policy
-     * resolution selects the mode-specific default. ClickHouse retains an implicit template because
+     * ({@link #resolveFromProperties}). The policy is enabled. Explicit {@code tableNameTemplate}
+     * configuration is preserved; otherwise policy
+     * resolution selects the source logical name. ClickHouse retains an implicit template because
      * its fixed database and flat table-name space must encode the stream namespace.
      */
     static Optional<CatalogAndPolicy> buildCatalogAndPolicy(Properties properties) {
@@ -289,24 +287,19 @@ public final class TableCatalogBootstrap {
         }
         TableCatalog catalog = new TableCatalog(catalogName, catalogType, connection, catalogProperties);
 
-        TableMode mode = "MANAGED".equalsIgnoreCase(properties.getProperty("streamTableMode", "EXTERNAL"))
-                ? TableMode.MANAGED : TableMode.EXTERNAL;
         Optional<String> tableNamespacePrefix = clickhouse
                 ? Optional.of(properties.getProperty("clickhouseDatabase", "default"))
                 : Optional.empty();
         // ClickHouse is a 2-level store (database.table) with no separate namespace tier, so the
         // stream namespace would otherwise be dropped and two streams with the same local name in
         // different namespaces would collide on one table. It therefore keeps an implicit template.
-        // Iceberg and Delta need no template: policy resolution selects the storage name for MANAGED
-        // tables and the source logical name for EXTERNAL/CUSTOM tables.
+        // Iceberg and Delta need no template: policy resolution uses the source logical name.
         String configuredTemplate = properties.getProperty(StreamTableNaming.TABLE_NAME_TEMPLATE_PROPERTY);
         Optional<TableNaming> tableNaming;
         if (configuredTemplate != null) {
             tableNaming = Optional.of(new TableNaming(tableNamespacePrefix, configuredTemplate));
         } else if (clickhouse) {
-            String defaultTemplate = mode == TableMode.MANAGED
-                    ? "${stream.namespace}.${stream.name}"
-                    : "${stream.namespace}.${stream.logicalName}";
+            String defaultTemplate = "${stream.namespace}.${stream.logicalName}";
             tableNaming = Optional.of(new TableNaming(tableNamespacePrefix, defaultTemplate));
         } else {
             tableNaming = Optional.empty();
@@ -339,7 +332,7 @@ public final class TableCatalogBootstrap {
                 Optional.empty(),
                 primaryKey,
                 dc.baseSchemaVersion(),
-                Optional.of(new TableConf(Optional.of(mode), Optional.empty(), Optional.empty(),
+                Optional.of(new TableConf(Optional.empty(), Optional.empty(),
                         Optional.empty(), Optional.empty(), Optional.empty())),
                 Map.of());
         return Optional.of(new CatalogAndPolicy(catalog, policy));
@@ -372,39 +365,16 @@ public final class TableCatalogBootstrap {
     }
 
     /**
-     * Resolves a {@link ResolvedMaterialization} for {@code streamId} directly from flat legacy config
-     * (e.g. compaction task properties carrying the catalog config + {@code DynamicConfigs}). This is the
-     * backward-compatibility path for deployments that drove materialization through task properties
-     * rather than a policy: when catalog-side materialization resolution returns empty, the worker
-     * falls back to this. Returns {@link Optional#empty()} when neither SDT nor SBT is enabled, or the
-     * config does not describe a supported catalog.
-     *
-     * <p>The gate accepts SBT as well as SDT. When an external catalog is configured ({@code
-     * lakehouseType} set), {@link #buildCatalogAndPolicy} synthesizes it honouring {@code
-     * streamTableMode} (so an ICEBERG MANAGED deployment still resolves its managed table here). When no
-     * external catalog is configured but SBT is enabled — the Ursa-protocol case where SDT is disabled
-     * and the WAL is compacted into topic-grouped parquet Compacted Objects — this synthesizes a
-     * managed-only resolution over a {@link TableCatalogType#NONE} catalog, so the dispatch path builds
-     * only the internal managed writer with no external sink. {@code sbtEnabled()} defaults to {@code
-     * sdtEnabled()}, so a deployment that configures neither still resolves nothing.
+     * Resolves an external destination from legacy task properties when SDT is enabled.
+     * Without a destination, a NONE catalog keeps internal CO compaction running independently.
      */
     public static Optional<ResolvedMaterialization> resolveFromProperties(Properties properties,
                                                                           StreamIdentifier streamId) {
         DynamicConfigs dynamicConfigs = DynamicConfigs.fromProperties(properties);
-        boolean sdtEnabled = dynamicConfigs.sdtEnabled();
-        boolean sbtEnabled = dynamicConfigs.sbtEnabled();
-        if (!sdtEnabled && !sbtEnabled) {
-            return Optional.empty();
-        }
-        CatalogAndPolicy cp = buildCatalogAndPolicy(properties).orElse(null);
+        CatalogAndPolicy cp = dynamicConfigs.sdtEnabled()
+                ? buildCatalogAndPolicy(properties).orElse(null) : null;
         if (cp == null) {
-            // No external catalog (lakehouseType unset). Only SBT can proceed: materialize the managed
-            // Compacted-Object writer alone via a synthetic NONE catalog. (SDT with no catalog has no
-            // sink to write to, so stay empty.)
-            if (!sbtEnabled) {
-                return Optional.empty();
-            }
-            cp = managedOnlyCatalogAndPolicy();
+            cp = compactedObjectCatalogAndPolicy();
         }
         final CatalogAndPolicy resolved = cp;
         return TableMaterializationPolicy.resolve(Optional.of(resolved.policy()), Optional.empty(), streamId,
@@ -413,14 +383,9 @@ public final class TableCatalogBootstrap {
                 propertiesToMap(properties));
     }
 
-    /**
-     * Builds the synthetic ({@link TableCatalog}, {@link TableMaterializationPolicy}) for the SBT-only
-     * case: a {@link TableCatalogType#NONE} catalog with a {@code MANAGED}, enabled policy. The
-     * mode-specific default keeps its synthetic table identity on {@code stream.name}. There is no
-     * factory for a NONE catalog; the dispatch path builds only the managed Compacted-Object writer.
-     */
-    private static CatalogAndPolicy managedOnlyCatalogAndPolicy() {
-        String catalogName = "managed-none";
+    /** Creates a storage-only dispatch placeholder; no table is created or registered. */
+    private static CatalogAndPolicy compactedObjectCatalogAndPolicy() {
+        String catalogName = "internal-compaction";
         TableCatalog catalog = new TableCatalog(catalogName, TableCatalogType.NONE, Map.of(), Map.of());
         TableMaterializationPolicy policy = new TableMaterializationPolicy(
                 Optional.of(catalogName),
@@ -431,7 +396,7 @@ public final class TableCatalogBootstrap {
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
-                Optional.of(new TableConf(Optional.of(TableMode.MANAGED), Optional.empty(), Optional.empty(),
+                Optional.of(new TableConf(Optional.empty(), Optional.empty(),
                         Optional.empty(), Optional.empty(), Optional.empty())),
                 Map.of());
         return new CatalogAndPolicy(catalog, policy);

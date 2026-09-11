@@ -18,13 +18,11 @@ class TableConfTest {
     @Test
     void testConstruction() {
         TableConf t = new TableConf(
-                Optional.of(TableMode.MANAGED),
                 Optional.of(List.of(PartitionSpec.streamPartition())),
                 Optional.of(List.of(new SortColumn("c", SortDirection.ASC, false))),
                 Optional.of(new RetentionConfig(Optional.empty(), Optional.empty(), Optional.empty())),
                 Optional.of(134_217_728L),
                 Optional.of(Compression.ZSTD));
-        assertEquals(Optional.of(TableMode.MANAGED), t.mode());
         assertEquals(Optional.of(Compression.ZSTD), t.compression());
         assertEquals(1, t.partitionBy().orElseThrow().size());
     }
@@ -36,7 +34,6 @@ class TableConfTest {
         List<SortColumn> sorts = new ArrayList<>();
         sorts.add(new SortColumn("c", SortDirection.ASC, false));
         TableConf t = new TableConf(
-                Optional.empty(),
                 Optional.of(parts),
                 Optional.of(sorts),
                 Optional.empty(),
@@ -55,14 +52,11 @@ class TableConfTest {
     @Test
     void testEqualsHashCode() {
         TableConf a = new TableConf(
-                Optional.of(TableMode.MANAGED),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         TableConf b = new TableConf(
-                Optional.of(TableMode.MANAGED),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         TableConf c = new TableConf(
-                Optional.of(TableMode.EXTERNAL),
-                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(Compression.ZSTD));
         assertEquals(a, b);
         assertEquals(a.hashCode(), b.hashCode());
         assertNotEquals(a, c);
@@ -71,16 +65,14 @@ class TableConfTest {
     @Test
     void testRejectsNullOptionals() {
         assertThrows(NullPointerException.class, () -> new TableConf(
-                null, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty()));
+                null, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty()));
         assertThrows(NullPointerException.class, () -> new TableConf(
-                Optional.empty(), null, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty()));
+                Optional.empty(), null, Optional.empty(), Optional.empty(), Optional.empty()));
         assertThrows(NullPointerException.class, () -> new TableConf(
-                Optional.empty(), Optional.empty(), null, Optional.empty(), Optional.empty(), Optional.empty()));
+                Optional.empty(), Optional.empty(), null, Optional.empty(), Optional.empty()));
         assertThrows(NullPointerException.class, () -> new TableConf(
-                Optional.empty(), Optional.empty(), Optional.empty(), null, Optional.empty(), Optional.empty()));
+                Optional.empty(), Optional.empty(), Optional.empty(), null, Optional.empty()));
         assertThrows(NullPointerException.class, () -> new TableConf(
-                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), null, Optional.empty()));
-        assertThrows(NullPointerException.class, () -> new TableConf(
-                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), null));
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), null));
     }
 }

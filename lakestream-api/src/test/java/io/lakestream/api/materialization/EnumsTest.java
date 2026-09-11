@@ -41,14 +41,6 @@ class EnumsTest {
     }
 
     @Test
-    void testTableMode() {
-        assertEquals(3, TableMode.values().length);
-        assertEquals(TableMode.MANAGED, TableMode.valueOf("MANAGED"));
-        assertEquals(TableMode.EXTERNAL, TableMode.valueOf("EXTERNAL"));
-        assertEquals(TableMode.CUSTOM, TableMode.valueOf("CUSTOM"));
-    }
-
-    @Test
     void testCompression() {
         assertEquals(5, Compression.values().length);
         assertEquals(Compression.ZSTD, Compression.valueOf("ZSTD"));

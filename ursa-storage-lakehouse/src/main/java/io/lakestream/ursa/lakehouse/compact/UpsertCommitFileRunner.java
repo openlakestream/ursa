@@ -54,7 +54,7 @@ public class UpsertCommitFileRunner extends AbstractCommitRunner implements Comm
         // TODO: optimize here
         // Resolve tolerantly: the SDT sink may be a non-lakehouse, inline-commit sink (e.g. ClickHouse)
         // selected via the materialization catalog, in which case lakehouseType is not an Iceberg/Delta
-        // managed format. A null committer means "no external lakehouse commit" — the managed Compacted
+        // managed format. A null committer means "no external lakehouse commit" — the internal Compacted
         // Object is still registered (compactOxiaIndex) and the offload cursor advanced.
         switch (config.getLakehouseTypeOrNone()) {
             case ICEBERG:
@@ -67,7 +67,7 @@ public class UpsertCommitFileRunner extends AbstractCommitRunner implements Comm
                 break;
             default:
                 this.lakehouseCommitter = null;
-                log.info("No external lakehouse committer (lakehouseType={}); SBT-only / inline-commit "
+                log.info("No external lakehouse committer (lakehouseType={}); internal CO-only / inline-commit "
                         + "SDT sink for parentTopic: {}", config.getLakehouseTypeOrNone(), parentTopic);
                 break;
         }

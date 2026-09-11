@@ -7,7 +7,6 @@ package io.lakestream.ursa.lakehouse.v2.delta;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -143,21 +142,6 @@ public class DeltaExternalTableWriterSchemaServiceTest {
 
         // Then
         assertNull(result);
-    }
-
-    @Test
-    void testInitializeDeltaWriterWithoutUnityCatalogThrowsException() throws Exception {
-        // Given
-        lenient().when(configuration.isMockUnityCatalog()).thenReturn(false);
-        lenient().when(configuration.getStreamTableMode())
-            .thenReturn(LakehouseConfiguration.StreamTableMode.MANAGED);
-
-        try {
-            writer = new DeltaExternalTableWriter(topic, entrySerdeFactory, configuration, InstrumentProvider.NOOP);
-            fail();
-        } catch (Exception e) {
-            assertEquals("Delta uc table must enable Unity catalog.", e.getMessage());
-        }
     }
 
     @Test

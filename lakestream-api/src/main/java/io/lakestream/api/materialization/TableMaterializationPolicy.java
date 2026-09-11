@@ -106,8 +106,7 @@ public record TableMaterializationPolicy(
      *       Namespace {@code enabled} is intentionally ignored.</li>
      *   <li>{@code catalogRef}: stream-over-namespace; required for resolution.</li>
      *   <li>{@code tableIdentifier}: stream's explicit value wins; otherwise the namespace's
-     *       {@link TableNaming} is applied. With neither configured, managed tables use
-     *       {@code stream.name}; external/custom tables use the source logical name and then fall
+     *       {@link TableNaming} is applied. With neither configured, tables use the source logical name and then fall
      *       back to {@code stream.name}.</li>
      *   <li>Sub-records ({@code framework}, {@code evolution}, {@code table}):
      *       merged field-by-field with stream-over-namespace semantics.</li>
@@ -155,7 +154,7 @@ public record TableMaterializationPolicy(
      *   <li>{@code catalogRef}: stream-over-namespace; required for resolution.</li>
      *   <li>{@code tableIdentifier}: stream's explicit value wins; otherwise the namespace's
      *       {@link TableNaming} is applied to {@code streamId} and {@code properties}. With neither
-     *       configured, managed tables use {@code stream.name}; external/custom tables use
+     *       configured, tables use
      *       {@link SourceMetadataProperties#LOGICAL_NAME_PROPERTY}, the legacy Kafka topic-name
      *       property, and finally {@code stream.name}.</li>
      *   <li>Sub-records ({@code framework}, {@code evolution}, {@code table}):
@@ -213,18 +212,14 @@ public record TableMaterializationPolicy(
         Optional<TableConf> effectiveTable = mergeTable(stream.table(), namespace.table());
 
         // Effective table identifier: an explicit stream value wins, then namespace naming. With
-        // neither configured, keep Ursa-managed tables tied to the storage stream identity while
-        // delivered tables use the source's stable logical name (Kafka topic, Pulsar topic, etc.).
+        // neither configured, use the source's stable logical name (Kafka topic, Pulsar topic, etc.).
         Optional<TableIdentifier> effectiveTableIdentifier = stream.tableIdentifier();
         if (effectiveTableIdentifier.isEmpty()) {
             effectiveTableIdentifier = namespace.tableNaming()
                     .map(naming -> naming.toTableIdentifier(streamId, properties));
         }
         if (effectiveTableIdentifier.isEmpty()) {
-            TableMode mode = effectiveTable.flatMap(TableConf::mode).orElse(TableMode.MANAGED);
-            String tableName = mode == TableMode.MANAGED
-                    ? streamId.name()
-                    : SourceMetadataProperties.logicalName(streamId, properties);
+            String tableName = SourceMetadataProperties.logicalName(streamId, properties);
             effectiveTableIdentifier = Optional.of(new TableIdentifier(streamId.namespace(), tableName));
         }
 
@@ -317,7 +312,6 @@ public record TableMaterializationPolicy(
         TableConf s = stream.get();
         TableConf n = namespace.get();
         return Optional.of(new TableConf(
-                pick(s.mode(), n.mode()),
                 pick(s.partitionBy(), n.partitionBy()),
                 pick(s.sortBy(), n.sortBy()),
                 mergeRetention(s.retention(), n.retention()),

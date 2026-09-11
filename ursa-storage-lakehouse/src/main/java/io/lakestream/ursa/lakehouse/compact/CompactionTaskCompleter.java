@@ -39,30 +39,29 @@ import org.apache.iceberg.io.WriteResult;
 public class CompactionTaskCompleter {
 
     private final CompactTaskManager compactTaskManager;
-    private final boolean managedTableSchemaEvolutionEnabled;
+    private final boolean compactedObjectSchemaEvolutionEnabled;
 
     public CompactionTaskCompleter(CompactTaskManager compactTaskManager,
-                                   boolean managedTableSchemaEvolutionEnabled) {
+                                   boolean compactedObjectSchemaEvolutionEnabled) {
         this.compactTaskManager = compactTaskManager;
-        this.managedTableSchemaEvolutionEnabled = managedTableSchemaEvolutionEnabled;
+        this.compactedObjectSchemaEvolutionEnabled = compactedObjectSchemaEvolutionEnabled;
     }
 
     /**
-     * Records the managed / external write results on the task and persists it as
+     * Records the internal / external write results on the task and persists it as
      * {@code COMPACTED}. At least one of the result lists must be non-empty.
      */
-    public void completeCompaction(CompactStreamTask task, List<IWriteResult> managedResults,
+    public void completeCompaction(CompactStreamTask task, List<IWriteResult> compactedObjectResults,
                                    List<IWriteResult> externalResults, List<IWriteResult> externalDLTResults)
             throws Exception {
 
-        if (managedResults.isEmpty() && externalResults.isEmpty() && externalDLTResults.isEmpty()) {
+        if (compactedObjectResults.isEmpty() && externalResults.isEmpty() && externalDLTResults.isEmpty()) {
             throw new ExceptionWithCode(ExceptionCode.COMPACTION_NO_WRITE_RESULT,
-                String.format("[%s] No write results found for the compaction task %s. It should only happen on "
-                              + "both the sbt and sdt disabled. Please check the configuration of the compaction "
-                              + "or the task properties.", task.getTopic(), task.getTaskName()));
+                String.format("[%s] No write results found for compaction task %s; check source records "
+                              + "and task properties.", task.getTopic(), task.getTaskName()));
         }
 
-        completeManagedCompaction(task, managedResults);
+        completeInternalCompaction(task, compactedObjectResults);
 
         Optional<CompactStreamTask> compactStreamTask = Optional.empty();
         if (!externalResults.isEmpty() || !externalDLTResults.isEmpty()) {
@@ -76,7 +75,7 @@ public class CompactionTaskCompleter {
         }
     }
 
-    private void completeManagedCompaction(CompactStreamTask task, List<IWriteResult> writeResults) {
+    private void completeInternalCompaction(CompactStreamTask task, List<IWriteResult> writeResults) {
         task.setStatus(CompactStreamTask.COMPACTED);
         // Use completion time because the source append timestamp is not available here.
         task.setMessageWrittenToUrsaTime(System.currentTimeMillis());
@@ -97,7 +96,7 @@ public class CompactionTaskCompleter {
         task.setStats(stat.getStats());
         task.setPartitionValues(Collections.emptyMap());
 
-        if (!managedTableSchemaEvolutionEnabled) {
+        if (!compactedObjectSchemaEvolutionEnabled) {
             return;
         }
         TreeSet<ManagedWriteResult> managedWriteResults = new TreeSet<>();

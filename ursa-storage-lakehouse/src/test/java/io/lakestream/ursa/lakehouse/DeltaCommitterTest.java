@@ -37,8 +37,8 @@ import io.lakestream.ursa.lakehouse.delta.AvroToDeltaConvert;
 import io.lakestream.ursa.lakehouse.delta.CloseableIterators;
 import io.lakestream.ursa.lakehouse.delta.DeltaTable;
 import io.lakestream.ursa.lakehouse.delta.DeltaTableUtils;
+import io.lakestream.ursa.lakehouse.delta.DirectExternalTable;
 import io.lakestream.ursa.lakehouse.delta.GenericRow;
-import io.lakestream.ursa.lakehouse.delta.ManagedDeltaTable;
 import io.lakestream.ursa.lakehouse.delta.MapValueImpl;
 import io.lakestream.ursa.lakehouse.delta.ParquetRowWriter;
 import io.lakestream.ursa.lakehouse.iceberg.exception.SchemaEvolutionException;
@@ -50,6 +50,7 @@ import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -89,15 +90,17 @@ class DeltaCommitterTest {
 
     @BeforeEach
     void setUp() throws NoSuchFieldException, IllegalAccessException {
-        committer = new DeltaCommitter(new LakehouseConfiguration(), "test-topic");
+        Properties properties = new Properties();
+        properties.setProperty("directExternalStoragePath", path.toString());
+        committer = new DeltaCommitter(new LakehouseConfiguration(properties), "test-topic");
         Field deltaTableField = DeltaCommitter.class.getDeclaredField("deltaTable");
         deltaTableField.setAccessible(true);
-        ManagedDeltaTable deltaTable = (ManagedDeltaTable) deltaTableField.get(committer);
+        DirectExternalTable deltaTable = (DirectExternalTable) deltaTableField.get(committer);
         Field engineField = DeltaTable.class.getDeclaredField("engine");
         engineField.setAccessible(true);
         engineField.set(deltaTable, engine);
 
-        Field tableField = ManagedDeltaTable.class.getDeclaredField("table");
+        Field tableField = DirectExternalTable.class.getDeclaredField("table");
         tableField.setAccessible(true);
         tableField.set(deltaTable, table);
     }
@@ -740,10 +743,11 @@ class DeltaCommitterTest {
         String location = testTablePath.toString();
         Properties properties = new Properties();
         properties.put("storagePath", location);
+        properties.put("directExternalStoragePath", location);
         properties.put(DeltaTable.SCHEMA_EVOLUTION_SOFT_DELETE_ENABLED, String.valueOf(softDeleteEnabled));
         LakehouseConfiguration lakehouseConfiguration = new LakehouseConfiguration(properties);
-        ManagedDeltaTable deltaManagedTable =
-            new ManagedDeltaTable(lakehouseConfiguration, topic);
+        DirectExternalTable deltaManagedTable =
+            new DirectExternalTable(lakehouseConfiguration, topic);
 
         Table table = deltaManagedTable.getTable();
         Engine engine = deltaManagedTable.getEngine();
@@ -903,7 +907,7 @@ class DeltaCommitterTest {
     }
 
     private void testDeltaCommiterSchemaEvolution(boolean softDeleteEnabled) throws Exception {
-        ManagedDeltaTable managedTable = createSchemaEvolutionTestTable(softDeleteEnabled);
+        DirectExternalTable managedTable = createSchemaEvolutionTestTable(softDeleteEnabled);
 
         Table table = managedTable.getTable();
         Engine engine = managedTable.getEngine();
@@ -947,7 +951,7 @@ class DeltaCommitterTest {
 
         String location = managedTable.getTableLocation();
         List<ParquetFileStat> v1File = writeV1Data(location, schemaV1);
-        managedTable.commit(v1File);
+        managedTable.commit(externalFiles(v1File));
 
         {
             Snapshot latestSnapshot = table.getLatestSnapshot(engine);
@@ -1033,7 +1037,7 @@ class DeltaCommitterTest {
         }
 
         List<ParquetFileStat> v2File = writeV2Data(location, schemaV2);
-        managedTable.commit(v2File);
+        managedTable.commit(externalFiles(v2File));
 
         {
             Snapshot latestSnapshot = table.getLatestSnapshot(engine);
@@ -1133,7 +1137,7 @@ class DeltaCommitterTest {
     }
 
     private void testDeltaCommiterSchemaEvolutionCommitPreviousData(boolean softDeleteEnabled) throws Exception {
-        ManagedDeltaTable managedTable = createSchemaEvolutionTestTable(softDeleteEnabled);
+        DirectExternalTable managedTable = createSchemaEvolutionTestTable(softDeleteEnabled);
 
         Table table = managedTable.getTable();
         Engine engine = managedTable.getEngine();
@@ -1154,7 +1158,7 @@ class DeltaCommitterTest {
         String location = managedTable.getTableLocation();
         //Write v2 data first
         List<ParquetFileStat> v2File = writeV2Data(location, schemaV2);
-        managedTable.commit(v2File);
+        managedTable.commit(externalFiles(v2File));
 
         {
             Snapshot latestSnapshot = table.getLatestSnapshot(engine);
@@ -1207,7 +1211,7 @@ class DeltaCommitterTest {
 
         //Write previous v1 data
         List<ParquetFileStat> v1File = writeV1Data(location, schemaV1);
-        managedTable.commit(v1File);
+        managedTable.commit(externalFiles(v1File));
 
         {
             Snapshot latestSnapshot = table.getLatestSnapshot(engine);
@@ -1300,13 +1304,14 @@ class DeltaCommitterTest {
     public void testDeltaCommiterSchemaEvolutionWithConflictCase() throws Exception {
         Properties properties = new Properties();
         properties.put("storagePath", path.toString());
+        properties.put("directExternalStoragePath", path.toString());
         properties.put("partitionKey", "none");
         properties.put("make-new-fields-optional", "true");
         properties.put(TableConfig.COLUMN_MAPPING_MODE.getKey(), "id");
         LakehouseConfiguration lakehouseConfiguration = new LakehouseConfiguration(properties);
         String topic = "testTopic" + UUID.randomUUID();
-        ManagedDeltaTable managedDeltaCommiter =
-            new ManagedDeltaTable(lakehouseConfiguration, topic);
+        DirectExternalTable managedDeltaCommiter =
+            new DirectExternalTable(lakehouseConfiguration, topic);
 
         Table table = managedDeltaCommiter.getTable();
         Engine engine = managedDeltaCommiter.getEngine();
@@ -1358,7 +1363,7 @@ class DeltaCommitterTest {
 
     @Test
     void testDeltaCommitterSchemaEvolutionDeletesMissingField() throws Exception {
-        ManagedDeltaTable managedTable = createSchemaEvolutionTestTable(false);
+        DirectExternalTable managedTable = createSchemaEvolutionTestTable(false);
 
         StructType schemaV1 = new StructType()
             .add(new StructField("id", LongType.LONG, false))
@@ -1377,7 +1382,7 @@ class DeltaCommitterTest {
 
     @Test
     void testDeltaCommitterSchemaEvolutionTreatsRenameAsDropAndAdd() throws Exception {
-        ManagedDeltaTable managedTable = createSchemaEvolutionTestTable(false);
+        DirectExternalTable managedTable = createSchemaEvolutionTestTable(false);
 
         StructType schemaV1 = new StructType()
             .add(new StructField("id", LongType.LONG, false))
@@ -1397,7 +1402,7 @@ class DeltaCommitterTest {
 
     @Test
     void testDeltaCommitterSchemaEvolutionRejectsIncompatibleTypeChange() throws Exception {
-        ManagedDeltaTable managedTable = createSchemaEvolutionTestTable(true);
+        DirectExternalTable managedTable = createSchemaEvolutionTestTable(true);
 
         StructType schemaV1 = new StructType()
             .add(new StructField("id", LongType.LONG, false))
@@ -1415,10 +1420,11 @@ class DeltaCommitterTest {
     void testDeltaCommitterSchemaEvolutionTypePromotionIntToLongAutoEnablesTypeWidening() throws Exception {
         Properties properties = new Properties();
         properties.put("storagePath", path.toString());
+        properties.put("directExternalStoragePath", path.toString());
         properties.put("partitionKey", "none");
         LakehouseConfiguration lakehouseConfiguration = new LakehouseConfiguration(properties);
-        ManagedDeltaTable managedTable =
-            new ManagedDeltaTable(lakehouseConfiguration, "testTopic" + UUID.randomUUID());
+        DirectExternalTable managedTable =
+            new DirectExternalTable(lakehouseConfiguration, "testTopic" + UUID.randomUUID());
 
         StructType schemaV1 = new StructType()
             .add(new StructField("id", LongType.LONG, false))
@@ -1447,7 +1453,7 @@ class DeltaCommitterTest {
 
     @Test
     void testDeltaCommitterSchemaEvolutionAddsNestedStructField() throws Exception {
-        ManagedDeltaTable managedTable = createSchemaEvolutionTestTable(true);
+        DirectExternalTable managedTable = createSchemaEvolutionTestTable(true);
 
         StructType profileV1 = new StructType()
             .add(new StructField("name", StringType.STRING, true));
@@ -1472,7 +1478,7 @@ class DeltaCommitterTest {
 
     @Test
     void testDeltaCommitterSchemaEvolutionSoftDeleteKeepsMissingField() throws Exception {
-        ManagedDeltaTable managedTable = createSchemaEvolutionTestTable(true);
+        DirectExternalTable managedTable = createSchemaEvolutionTestTable(true);
 
         StructType schemaV1 = new StructType()
             .add(new StructField("id", LongType.LONG, false))
@@ -1495,7 +1501,7 @@ class DeltaCommitterTest {
 
     @Test
     void testDeltaCommitterSchemaEvolutionSoftDeleteKeepsMissingNestedField() throws Exception {
-        ManagedDeltaTable managedTable = createSchemaEvolutionTestTable(true);
+        DirectExternalTable managedTable = createSchemaEvolutionTestTable(true);
 
         StructType profileV1 = new StructType()
             .add(new StructField("name", StringType.STRING, false))
@@ -1524,25 +1530,26 @@ class DeltaCommitterTest {
         assertEquals(Set.of(1L, 2L), managedTable.getSchemaMapping());
     }
 
-    private ManagedDeltaTable createSchemaEvolutionTestTable(boolean softDeleteEnabled) {
+    private DirectExternalTable createSchemaEvolutionTestTable(boolean softDeleteEnabled) {
         Properties properties = new Properties();
         properties.put("storagePath", path.toString());
+        properties.put("directExternalStoragePath", path.toString());
         properties.put("partitionKey", "none");
         properties.put(TableConfig.COLUMN_MAPPING_MODE.getKey(), "id");
         properties.put(DeltaTable.SCHEMA_EVOLUTION_SOFT_DELETE_ENABLED, String.valueOf(softDeleteEnabled));
         LakehouseConfiguration lakehouseConfiguration = new LakehouseConfiguration(properties);
-        return new ManagedDeltaTable(lakehouseConfiguration, "testTopic" + UUID.randomUUID());
+        return new DirectExternalTable(lakehouseConfiguration, "testTopic" + UUID.randomUUID());
     }
 
     private List<Row> writeCommitAndLoadDeltaRows(StructType deltaSchema, GenericRow row) throws Exception {
-        ManagedDeltaTable managedTable = createSchemaEvolutionTestTable(false);
+        DirectExternalTable managedTable = createSchemaEvolutionTestTable(false);
         managedTable.createDeltaTable(null, deltaSchema);
 
         ParquetRowWriter parquetRowWriter = new ParquetRowWriter(
             managedTable.getTableLocation(), new Configuration(), Collections.emptyList(), deltaSchema, 1000);
         parquetRowWriter.write(row);
         List<ParquetFileStat> fileStats = parquetRowWriter.close();
-        managedTable.commit(fileStats);
+        managedTable.commit(externalFiles(fileStats));
 
         return DeltaTableUtils.loadData(managedTable.getEngine(), managedTable.getLatestSnapshot());
     }
@@ -1651,5 +1658,14 @@ class DeltaCommitterTest {
         AddFileAction action = mock(AddFileAction.class);
         lenient().when(action.getTags()).thenReturn(tags);
         return action;
+    }
+    private static List<ParquetFileStat> externalFiles(List<ParquetFileStat> files) {
+        List<ParquetFileStat> results = new ArrayList<>();
+        for (ParquetFileStat file : files) {
+            ParquetFileStat result = new ParquetFileStat(null, null, 0L, null, Map.of(), file.getTags());
+            result.setDeltaFiles(List.of(file));
+            results.add(result);
+        }
+        return results;
     }
 }

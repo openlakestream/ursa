@@ -57,7 +57,6 @@ class DeltaAvroVariantTypeTest {
         properties.put("storagePath", tempDir.toString());
         properties.setProperty("mockUnityCatalog", "true");
         properties.put("mockedUnityCatalogRootStorage", tempDir.toString());
-        properties.setProperty("streamTableMode", "external");
         properties.setProperty("tableEvolveSchemaEnabled", "true");
 
         LakehouseConfiguration config = new LakehouseConfiguration(properties);

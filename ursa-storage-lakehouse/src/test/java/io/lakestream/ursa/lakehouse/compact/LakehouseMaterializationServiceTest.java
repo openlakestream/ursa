@@ -26,7 +26,6 @@ import io.lakestream.api.materialization.TableCatalogType;
 import io.lakestream.api.materialization.TableConf;
 import io.lakestream.api.materialization.TableIdentifier;
 import io.lakestream.api.materialization.TableMaterializationPolicy;
-import io.lakestream.api.materialization.TableMode;
 import io.lakestream.ursa.compaction.task.CompactStreamTask;
 import io.lakestream.ursa.exception.ExceptionCode;
 import io.lakestream.ursa.lakehouse.LakehouseConfiguration;
@@ -147,7 +146,7 @@ class LakehouseMaterializationServiceTest {
     void materializeNoneCatalogSkipsFactoryLookup() {
         service.initialize(runtime, config);
         ResolvedMaterialization resolved = new ResolvedMaterialization(
-                new TableCatalog("managed-none", TableCatalogType.NONE, Map.of(), Map.of()),
+                new TableCatalog("internal-compaction", TableCatalogType.NONE, Map.of(), Map.of()),
                 new TableIdentifier("ns", "tbl"),
                 TableMaterializationPolicy.empty());
 
@@ -160,22 +159,21 @@ class LakehouseMaterializationServiceTest {
     }
 
     @Test
-    void managedOnlyMaterializationUsesLogicalTopicFromMetadata() throws Exception {
+    void compactedObjectMaterializationUsesSourceTopicFromMetadata() throws Exception {
         service.initialize(runtime, config);
         String sourceTopic = "default/orders-topic-id-partition-0";
         Map<String, String> effectiveProperties = Map.of(
-                "sbtEnabled", "true",
                 KafkaSourceMetadata.TOPIC_NAME_PROPERTY, "orders");
         CompactStreamTask sourceTask = sourceTask(
-                sourceTopic, 17L, Map.of("sbtEnabled", "true"));
+                sourceTopic, 17L, Map.of());
         service.setEntryReaderProvider(emptyReader());
         AbstractLakehouseWriter managedWriter = mock(AbstractLakehouseWriter.class);
         LakehouseFactory managedFactory = mock(LakehouseFactory.class);
-        when(managedFactory.getManagedWriter(sourceTopic, effectiveProperties))
+        when(managedFactory.getCompactedObjectWriter(sourceTopic, effectiveProperties))
                 .thenReturn(java.util.Optional.of(managedWriter));
         service.setLakehouseFactory(managedFactory);
         ResolvedMaterialization resolved = new ResolvedMaterialization(
-                new TableCatalog("managed-none", TableCatalogType.NONE, Map.of(), Map.of()),
+                new TableCatalog("internal-compaction", TableCatalogType.NONE, Map.of(), Map.of()),
                 new TableIdentifier("ns", "tbl"),
                 TableMaterializationPolicy.empty());
         StreamMetadata metadata = metadata(
@@ -185,15 +183,15 @@ class LakehouseMaterializationServiceTest {
         service.materialize(new MaterializationTask(
                 metadata, resolved, sourceTopic, 17L, 0L, 0L, sourceTask));
 
-        verify(managedFactory).getManagedWriter(sourceTopic, effectiveProperties);
+        verify(managedFactory).getCompactedObjectWriter(sourceTopic, effectiveProperties);
         verify(managedWriter).close();
     }
 
     @Test
-    void managedCatalogMaterializerDoesNotAlsoBuildStandaloneSbtWriter() {
+    void externalCatalogMaterializerAlsoBuildsCompactedObjectWriter() {
         service.initialize(runtime, config);
         String sourceTopic = "default/orders-topic-id-abc-partition-0";
-        CompactStreamTask sourceTask = sourceTask(sourceTopic, 17L, Map.of("sbtEnabled", "true"));
+        CompactStreamTask sourceTask = sourceTask(sourceTopic, 17L, Map.of());
         service.setEntryReaderProvider(emptyReader());
         LakehouseFactory managedFactory = mock(LakehouseFactory.class);
         service.setLakehouseFactory(managedFactory);
@@ -222,10 +220,10 @@ class LakehouseMaterializationServiceTest {
             }
         });
         TableIdentifier identifier = new TableIdentifier("default", "orders-topic-id-abc");
-        TableMaterializationPolicy policy = policyWithMode(
-                "managed-iceberg", identifier, TableMode.MANAGED);
+        TableMaterializationPolicy policy = policyWithIdentifier(
+                "external-iceberg", identifier);
         ResolvedMaterialization resolved = new ResolvedMaterialization(
-                new TableCatalog("managed-iceberg", TableCatalogType.ICEBERG, Map.of(), Map.of()),
+                new TableCatalog("external-iceberg", TableCatalogType.ICEBERG, Map.of(), Map.of()),
                 identifier,
                 policy);
 
@@ -234,12 +232,11 @@ class LakehouseMaterializationServiceTest {
                 resolved, sourceTopic, 17L, 0L, 0L, sourceTask));
 
         verify(catalogMaterializer).commit();
-        verify(managedFactory, never()).getManagedWriter(any(), any());
+        verify(managedFactory).getCompactedObjectWriter(any(), any());
         assertThat(sourceTask.getProperties())
                 .containsEntry(StreamTableNaming.RESOLVED_TABLE_NAMESPACE_PROPERTY, "default")
                 .containsEntry(StreamTableNaming.RESOLVED_TABLE_NAME_PROPERTY, "orders-topic-id-abc")
-                .containsEntry(LakehouseConfiguration.STREAM_TABLE_MODE, TableMode.MANAGED.name())
-                .containsEntry(LakehouseConfiguration.CATALOG_NAME, "managed-iceberg")
+                .containsEntry(LakehouseConfiguration.CATALOG_NAME, "external-iceberg")
                 .containsEntry("lakehouseType", LakehouseConfiguration.LakehouseType.ICEBERG.name());
     }
 
@@ -292,7 +289,7 @@ class LakehouseMaterializationServiceTest {
             return reader(new ArrayDeque<>());
         });
         LakehouseFactory managedFactory = mock(LakehouseFactory.class);
-        when(managedFactory.getManagedWriter(eq(canonicalTopic), any()))
+        when(managedFactory.getCompactedObjectWriter(eq(canonicalTopic), any()))
                 .thenReturn(java.util.Optional.empty());
         service.setLakehouseFactory(managedFactory);
         TableMaterializer<GenericEntry> materializer = mock(TableMaterializer.class);
@@ -341,14 +338,13 @@ class LakehouseMaterializationServiceTest {
                 KafkaSourceMetadata.LOGICAL_NAME_PROPERTY, "orders",
                 KafkaSourceMetadata.TOPIC_NAME_PROPERTY, "orders",
                 MaterializationRuntime.SOURCE_TOPIC_PROPERTY, canonicalTopic));
-        verify(managedFactory).getManagedWriter(canonicalTopic, Map.of(
+        verify(managedFactory).getCompactedObjectWriter(canonicalTopic, Map.of(
                 "sdtCatalogName", "orders-catalog",
                 KafkaSourceMetadata.LOGICAL_NAME_PROPERTY, "orders",
                 KafkaSourceMetadata.TOPIC_NAME_PROPERTY, "orders"));
         assertThat(sourceTask.getProperties())
                 .containsEntry(StreamTableNaming.RESOLVED_TABLE_NAMESPACE_PROPERTY, "ns")
                 .containsEntry(StreamTableNaming.RESOLVED_TABLE_NAME_PROPERTY, "tbl")
-                .containsEntry(LakehouseConfiguration.STREAM_TABLE_MODE, TableMode.EXTERNAL.name())
                 .containsEntry(LakehouseConfiguration.CATALOG_NAME, "delta-cat")
                 .containsEntry("lakehouseType", LakehouseConfiguration.LakehouseType.DELTA.name());
         verify(materializer).commit();
@@ -627,11 +623,11 @@ class LakehouseMaterializationServiceTest {
         return new ResolvedMaterialization(
                 new TableCatalog("delta-cat", TableCatalogType.DELTA, Map.of(), Map.of()),
                 identifier,
-                policyWithMode("delta-cat", identifier, TableMode.EXTERNAL));
+                policyWithIdentifier("delta-cat", identifier));
     }
 
-    private static TableMaterializationPolicy policyWithMode(
-            String catalog, TableIdentifier identifier, TableMode mode) {
+    private static TableMaterializationPolicy policyWithIdentifier(
+            String catalog, TableIdentifier identifier) {
         return new TableMaterializationPolicy(
                 Optional.of(catalog),
                 Optional.empty(),
@@ -642,7 +638,6 @@ class LakehouseMaterializationServiceTest {
                 Optional.empty(),
                 Optional.empty(),
                 Optional.of(new TableConf(
-                        Optional.of(mode),
                         Optional.empty(),
                         Optional.empty(),
                         Optional.empty(),

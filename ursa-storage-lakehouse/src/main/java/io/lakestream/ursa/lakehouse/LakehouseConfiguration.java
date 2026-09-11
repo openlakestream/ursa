@@ -92,7 +92,6 @@ public class LakehouseConfiguration {
     public static final String FIXED_PARTITION_KEY = "__partition";
     public static final String ICEBERG_CREDENTIAL_FILE = "iceberg.credentialFile";
     public static final String UNITY_CATALOG_TOKEN_FILE = "unityCatalogTokenFile";
-    public static final String STREAM_TABLE_MODE = "streamTableMode";
     public static final String DEFAULT_CATALOG_NAME = "catalog.default";
     public static final String CATALOG_BACKEND_TYPE = "catalog-backend";
     // This configuration is used to set catalog name in namespace or topic properties,
@@ -120,7 +119,7 @@ public class LakehouseConfiguration {
         DELTA_DLT_ENABLED);
 
     public static final Set<String> TOPIC_PROPERTIES_PREFIX =
-        Set.of(CATALOG_PROP_PREFIX, HADOOP_PROP_PREFIX, WRITE_PROP_PREFIX, TABLE_PROP_PREFIX, STREAM_TABLE_MODE);
+        Set.of(CATALOG_PROP_PREFIX, HADOOP_PROP_PREFIX, WRITE_PROP_PREFIX, TABLE_PROP_PREFIX);
 
     // Kafka
     public static final String KAFKA_COMPRESSION_TYPE = "kafka.compression.type";
@@ -149,12 +148,6 @@ public class LakehouseConfiguration {
         NONE
     }
 
-    public enum StreamTableMode {
-        MANAGED,
-        EXTERNAL,
-        CUSTOM
-    }
-
     // used for testing purpose
     public LakehouseConfiguration() {
         this(new Properties());
@@ -179,7 +172,6 @@ public class LakehouseConfiguration {
 
     private void injectDefaultConfiguration() {
         this.properties.putIfAbsent("clusterSdtEnabled", "true");
-        this.properties.putIfAbsent("clusterSbtEnabled", "true");
     }
 
     // iceberg.catalog.<catalog_name>.<property_name>=<property_value>
@@ -630,23 +622,8 @@ public class LakehouseConfiguration {
     }
 
     public String getPartitionKey() {
-        // Managed table always use fixed partition key or none partition key
-        if (getStreamTableMode() == StreamTableMode.MANAGED) {
-                String partitionKey = properties.getProperty("partitionKey", FIXED_PARTITION_KEY);
-                if (FIXED_PARTITION_KEY.equals(partitionKey)
-                    || (!StringUtils.isBlank(partitionKey) && partitionKey.contains(FIXED_PARTITION_KEY))) {
-                    return FIXED_PARTITION_KEY;
-                }
-                return NONE_PARTITION_KEY;
-        } else {
-            // External table supports user defined key or use none partition key
-            String partitionKey = properties.getProperty("partitionKey", NONE_PARTITION_KEY);
-            //Handle the wrong config case.
-            if (partitionKey.equals(FIXED_PARTITION_KEY)) {
-                return NONE_PARTITION_KEY;
-            }
-            return partitionKey;
-        }
+        String partitionKey = properties.getProperty("partitionKey", NONE_PARTITION_KEY);
+        return FIXED_PARTITION_KEY.equals(partitionKey) ? NONE_PARTITION_KEY : partitionKey;
     }
 
     public Set<String> getIdentifierFields() {
@@ -664,13 +641,8 @@ public class LakehouseConfiguration {
     }
 
     /**
-     * Like {@link #getLakehouseType()} but returns {@link LakehouseType#NONE} when {@code lakehouseType}
-     * is not a recognized managed/SBT lakehouse table format. With the LIP-161 pipeline,
-     * {@code lakehouseType} can carry a non-lakehouse SDT sink selector (e.g. {@code CLICKHOUSE}, which
-     * is a {@code TableCatalogType} routed through the materialization catalog, not an Iceberg/Delta
-     * managed table). The SBT/managed-parquet commit path uses this accessor so a non-lakehouse SDT sink
-     * is treated as "no external lakehouse commit" — the managed Compacted Object is still registered and
-     * the offload cursor advanced — rather than throwing on the unknown enum value.
+     * Returns NONE for non-lakehouse sinks such as ClickHouse. Internal CO files still update
+     * the stream index; only external Iceberg/Delta results require a lakehouse committer.
      */
     public LakehouseType getLakehouseTypeOrNone() {
         try {
@@ -799,11 +771,6 @@ public class LakehouseConfiguration {
     public int getIcebergSnapshotExpirationInterval() {
         return Integer.parseInt(
             properties.getProperty("icebergSnapshotExpirationIntervalInSeconds", "-1"));
-    }
-
-    public StreamTableMode getStreamTableMode() {
-        return StreamTableMode.valueOf(properties.getProperty("streamTableMode",
-            StreamTableMode.MANAGED.name()).toUpperCase(Locale.ROOT));
     }
 
     public int getDeltaKernelWriteBatchSize() {

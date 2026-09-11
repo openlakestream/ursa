@@ -49,7 +49,6 @@ public class StorageConfigTest {
         // Create a unique temporary file for each test
         tempFile = Files.createTempFile("test_config", ".properties");
         baseConfig = StorageConfig.builder()
-            .streamTableMode("MANAGED")
             .upsertModeEnabled(false)
             .thirdPartySchemaRegistryEnabled(false)
             .backendStorageType("S3")
@@ -477,7 +476,7 @@ public class StorageConfigTest {
     @DisplayName("Should override string fields correctly")
     void testWithOverrides_StringFields() {
         Map<String, String> overrides = new HashMap<>();
-        overrides.put("streamTableMode", "EXTERNAL");
+        overrides.put("unityCatalogName", "updated-catalog");
         overrides.put("backendStorageType", "GCS");
         overrides.put("bucket", "new-bucket");
         overrides.put("prefix", "new-prefix");
@@ -486,14 +485,14 @@ public class StorageConfigTest {
         StorageConfig result = baseConfig.withOverrides(overrides);
 
         assertNotSame(baseConfig, result);
-        assertEquals("EXTERNAL", result.getStreamTableMode());
+        assertEquals("updated-catalog", result.getUnityCatalogName());
         assertEquals("GCS", result.getBackendStorageType());
         assertEquals("new-bucket", result.getBucket());
         assertEquals("new-prefix", result.getPrefix());
         assertEquals("us-east-1", result.getRegion());
 
         // Verify original config is unchanged
-        assertEquals("MANAGED", baseConfig.getStreamTableMode());
+        assertEquals("test-catalog", baseConfig.getUnityCatalogName());
         assertEquals("S3", baseConfig.getBackendStorageType());
     }
 
@@ -614,18 +613,18 @@ public class StorageConfigTest {
         baseConfig.setProperties(initialProperties);
 
         Map<String, String> overrides = new HashMap<>();
-        overrides.put("streamTableMode", "EXTERNAL");
+        overrides.put("unityCatalogName", "updated-catalog");
         overrides.put("new.property", "new.value");
 
         StorageConfig result = baseConfig.withOverrides(overrides);
 
         Properties resultProperties = result.getProperties();
         assertEquals("existing.value", resultProperties.getProperty("existing.key"));
-        assertEquals("EXTERNAL", resultProperties.getProperty("streamTableMode"));
+        assertEquals("updated-catalog", resultProperties.getProperty("unityCatalogName"));
         assertEquals("new.value", resultProperties.getProperty("new.property"));
 
         // Verify original properties are unchanged
-        assertNull(baseConfig.getProperties().getProperty("streamTableMode"));
+        assertNull(baseConfig.getProperties().getProperty("unityCatalogName"));
         assertNull(baseConfig.getProperties().getProperty("new.property"));
     }
 
@@ -633,14 +632,14 @@ public class StorageConfigTest {
     @DisplayName("Should handle unknown configuration keys gracefully")
     void testWithOverrides_UnknownKeys() {
         Map<String, String> overrides = new HashMap<>();
-        overrides.put("streamTableMode", "EXTERNAL");
+        overrides.put("unityCatalogName", "updated-catalog");
         overrides.put("unknownKey", "unknownValue");
         overrides.put("anotherUnknownKey", "anotherValue");
 
         // This should not throw an exception
         StorageConfig result = baseConfig.withOverrides(overrides);
 
-        assertEquals("EXTERNAL", result.getStreamTableMode());
+        assertEquals("updated-catalog", result.getUnityCatalogName());
 
         // Unknown keys should still be in properties
         assertEquals("unknownValue", result.getProperties().getProperty("unknownKey"));
@@ -652,13 +651,13 @@ public class StorageConfigTest {
     void testWithOverrides_InvalidNumberFormats() {
         Map<String, String> overrides = new HashMap<>();
         overrides.put("writeBufferSize", "invalid-number");
-        overrides.put("streamTableMode", "EXTERNAL");
+        overrides.put("unityCatalogName", "updated-catalog");
 
         StorageConfig result = baseConfig.withOverrides(overrides);
 
         assertSame(baseConfig, result);
         assertEquals(baseConfig.getWriteBufferSize(), result.getWriteBufferSize());
-        assertEquals("MANAGED", result.getStreamTableMode());
+        assertEquals("test-catalog", result.getUnityCatalogName());
     }
 
     @ParameterizedTest
@@ -706,7 +705,7 @@ public class StorageConfigTest {
     @DisplayName("Should handle multiple field types in single override")
     void testWithOverrides_MultipleFieldTypes() {
         Map<String, String> overrides = new HashMap<>();
-        overrides.put("streamTableMode", "EXTERNAL");
+        overrides.put("unityCatalogName", "updated-catalog");
         overrides.put("upsertModeEnabled", "true");
         overrides.put("writeBufferSize", "16777216"); // 16MB
         overrides.put("writeBufferFlushSize", "1073741824"); // 1GB
@@ -715,7 +714,7 @@ public class StorageConfigTest {
 
         StorageConfig result = baseConfig.withOverrides(overrides);
 
-        assertEquals("EXTERNAL", result.getStreamTableMode());
+        assertEquals("updated-catalog", result.getUnityCatalogName());
         assertTrue(result.isUpsertModeEnabled());
         assertEquals(16777216, result.getWriteBufferSize());
         assertEquals(1073741824L, result.getWriteBufferFlushSize());
@@ -727,24 +726,24 @@ public class StorageConfigTest {
     @DisplayName("Should preserve immutability of original config")
     void testWithOverrides_ImmutabilityOfOriginal() {
         Map<String, String> overrides = new HashMap<>();
-        overrides.put("streamTableMode", "EXTERNAL");
+        overrides.put("unityCatalogName", "updated-catalog");
         overrides.put("upsertModeEnabled", "true");
         overrides.put("writeBufferSize", "8388608");
 
         // Store original values
-        String originalStreamTableMode = baseConfig.getStreamTableMode();
+        String originalCatalogName = baseConfig.getUnityCatalogName();
         boolean originalUpsertMode = baseConfig.isUpsertModeEnabled();
         int originalWriteBufferSize = baseConfig.getWriteBufferSize();
 
         StorageConfig result = baseConfig.withOverrides(overrides);
 
         // Verify original config is completely unchanged
-        assertEquals(originalStreamTableMode, baseConfig.getStreamTableMode());
+        assertEquals(originalCatalogName, baseConfig.getUnityCatalogName());
         assertEquals(originalUpsertMode, baseConfig.isUpsertModeEnabled());
         assertEquals(originalWriteBufferSize, baseConfig.getWriteBufferSize());
 
         // Verify new config has overridden values
-        assertEquals("EXTERNAL", result.getStreamTableMode());
+        assertEquals("updated-catalog", result.getUnityCatalogName());
         assertTrue(result.isUpsertModeEnabled());
         assertEquals(8388608, result.getWriteBufferSize());
     }
