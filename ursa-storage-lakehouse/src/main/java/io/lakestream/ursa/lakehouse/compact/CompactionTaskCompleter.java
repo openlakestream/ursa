@@ -83,16 +83,14 @@ public class CompactionTaskCompleter {
             return;
         }
 
-        var wr = (ParquetWriteResult) writeResults.get(0);
         var stat = createParquetFileStat(writeResults);
         task.setFilePath(stat.getFilePath());
         task.setFileFullPath(stat.getFileFullPath());
         task.setFileSize(stat.getFileSize());
-        var messages = (AtomicLong) wr.getExtraMetadata().get(BATCH_MESSAGE_COUNT);
-        task.setNumberOfRecordsInCompactedFile(Math.toIntExact(messages.get()));
         task.setStats(stat.getStats());
         task.setPartitionValues(Collections.emptyMap());
 
+        long totalMessages = 0;
         TreeSet<CompactedObjectWriteResult> compactedObjectWriteResults = new TreeSet<>();
         for (IWriteResult writeResult : writeResults) {
             if (writeResult instanceof ParquetWriteResult pwr) {
@@ -101,6 +99,7 @@ public class CompactionTaskCompleter {
                 var fileSize = pwr.getDataFileSize();
                 var messageCount = (AtomicLong) pwr.getExtraMetadata().get(BATCH_MESSAGE_COUNT);
                 var messageCountIntValue = Math.toIntExact(messageCount.get());
+                totalMessages = Math.addExact(totalMessages, messageCountIntValue);
                 long lastEntryId = (long) pwr.getExtraMetadata().getOrDefault("lastEntryIdInFile", -1L);
                 long lastBatchId = (long) pwr.getExtraMetadata().getOrDefault("lastBatchIdInFile", -1L);
                 var result = CompactedObjectWriteResult.builder()
@@ -114,6 +113,7 @@ public class CompactionTaskCompleter {
                 compactedObjectWriteResults.add(result);
             }
         }
+        task.setNumberOfRecordsInCompactedFile(Math.toIntExact(totalMessages));
         task.setCompactedObjectWriteResults(compactedObjectWriteResults);
     }
 

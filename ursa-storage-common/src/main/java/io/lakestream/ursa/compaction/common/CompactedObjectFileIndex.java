@@ -7,6 +7,7 @@ package io.lakestream.ursa.compaction.common;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 import java.util.Optional;
 import java.util.TreeMap;
 import lombok.extern.slf4j.Slf4j;
@@ -60,6 +61,12 @@ public class CompactedObjectFileIndex {
         load();
         checkBounds(offsetToFind);
         return resultCache.ceilingEntry(offsetToFind).getValue();
+    }
+
+    /** Returns every referenced file in offset order, without duplicates. */
+    public List<String> filePaths() {
+        load();
+        return resultCache.values().stream().distinct().toList();
     }
 
     public Optional<Long> getFileBaseOffset(long offsetToFind) throws IllegalArgumentException {

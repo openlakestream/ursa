@@ -97,6 +97,7 @@ class CompactionTaskCompleterTest {
 
         verify(ctm).updateCompactTask(task);
         assertThat(task.getCompactedObjectWriteResults()).hasSize(2);
+        assertThat(task.getNumberOfRecordsInCompactedFile()).isEqualTo(5);
         CompactStreamTask restored = CompactStreamTaskSerde.INSTANCE.deserialize(
                 CompactStreamTaskSerde.INSTANCE.serialize(task));
         assertThat(restored.getCompactedObjectWriteResults()).isEqualTo(task.getCompactedObjectWriteResults());

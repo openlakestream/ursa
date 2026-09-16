@@ -7,6 +7,7 @@ package io.lakestream.ursa.lakehouse.cleaner;
 import com.google.common.annotations.VisibleForTesting;
 import io.lakestream.api.EntryIndex;
 import io.lakestream.api.Position;
+import io.lakestream.ursa.compaction.common.CompactedObjectFileIndex;
 import io.lakestream.ursa.lakehouse.writer.ParquetFileStat;
 import io.lakestream.ursa.storage.FileStorage;
 import io.lakestream.ursa.storage.StorageApi;
@@ -132,14 +133,24 @@ public class CompactedDataCleanupHandler implements StartStopRunner {
                         // The format for the `fileFullPath` looks like
                         // "{compactionPrefix}/public/default/topic/__partition=0/part-xxx.parquet"
                         // The `fileFullPath` is used to delete the file from the Cloud Storage.
-                        String fileFullPath = getFileFullPath(compactionTopic, file.location());
-                        final Map<String, String> tags = Map.of(
-                                "totalMessage", String.valueOf(index.header().numberOfMessages())
-                        );
-                        var stats = new ParquetFileStat(file.location(), fileFullPath, file.size(), null,
-                                Collections.emptyMap(), tags);
-                        parquetFiles.add(stats);
-                        totalFiles++;
+                        List<String> locations = index.extraData()
+                                .map(metadata -> metadata.get(CompactedObjectFileIndex.NAME))
+                                .map(CompactedObjectFileIndex::deserializeFromString)
+                                .map(CompactedObjectFileIndex::filePaths)
+                                .orElseGet(() -> List.of(file.location()));
+                        if (locations.isEmpty()) {
+                            throw new IllegalStateException("Empty CO file index for stream " + task.streamId());
+                        }
+                        for (String location : locations) {
+                            String fileFullPath = getFileFullPath(compactionTopic, location);
+                            final Map<String, String> tags = Map.of(
+                                    "totalMessage", String.valueOf(index.header().numberOfMessages()));
+                            parquetFiles.add(new ParquetFileStat(location, fileFullPath, file.size(), null,
+                                    Collections.emptyMap(), tags));
+                        }
+                        totalFiles += locations.size();
+                        // Keep every file of an EntryIndex in one subtask. Trimming a partial
+                        // group would lose the references needed to retry the remaining deletes.
                         endOffset = index.header().offset() + index.header().numberOfMessages();
                         if (parquetFiles.size() >= MAX_FILES_PER_TASK) {
                             subTasks.add(new SubTask(task, parquetFiles, endOffset));
@@ -215,7 +226,15 @@ public class CompactedDataCleanupHandler implements StartStopRunner {
         }
 
         List<String> files = parquetFiles.stream()
-                .map(ParquetFileStat::getFileFullPath)
+                .flatMap(stat -> {
+                    String parquet = stat.getFileFullPath();
+                    if (!parquet.endsWith(".parquet")) {
+                        throw new IllegalArgumentException("Invalid CO file path: " + parquet);
+                    }
+                    String rowIndex = parquet.substring(0, parquet.length() - ".parquet".length()) + ".index";
+                    return java.util.stream.Stream.of(parquet, rowIndex);
+                })
+                .distinct()
                 .collect(Collectors.toList());
 
         // The deleteAsync should be handled by the executor thread pool because there is a sync operation
