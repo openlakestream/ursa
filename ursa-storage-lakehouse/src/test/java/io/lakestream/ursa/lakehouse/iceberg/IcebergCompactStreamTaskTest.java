@@ -67,7 +67,6 @@ class IcebergCompactStreamTaskTest {
         // Then
         assertThat(icebergTask)
             .usingRecursiveComparison()
-            .ignoringFields("writeResult")
             .ignoringFields("writeResults")
             .ignoringFields("dltWriteResults")
             .isEqualTo(baseTask);

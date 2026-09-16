@@ -49,7 +49,7 @@ public final class StreamTableNaming {
         return Map.copyOf(resolved);
     }
 
-    /** Returns {@code namespace/name}, the legacy writer representation of a table identifier. */
+    /** Returns {@code namespace/name}, the writer representation of a table identifier. */
     public static String qualifiedName(TableIdentifier identifier) {
         Objects.requireNonNull(identifier, "identifier");
         return identifier.namespace() + "/" + identifier.name();
@@ -62,30 +62,8 @@ public final class StreamTableNaming {
         return new TableIdentifier(identifier.namespace(), identifier.name() + suffix);
     }
 
-    /**
-     * Resolves the table for {@code logName} on a commit or cleanup path.
-     *
-     * <p>New tasks carry the exact identifier chosen by {@code ResolvedMaterialization}; that value
-     * always wins. Tasks created by older versions fall back to their naming template, then to the
-     * historical stream-name behaviour. Keeping the last fallback unchanged lets an old compacted
-     * task commit to the same table its old writer created.
-     */
+    /** Resolves the same destination for writers and asynchronous committers. */
     public static TableIdentifier resolve(String logName, Properties properties) {
-        return resolve(logName, properties, false);
-    }
-
-    /**
-     * Resolves the destination a writer should create when no final identifier has been persisted yet.
-     * Writers use source logical-name metadata by default. Once the writer completes, its result
-     * must persist this identifier so
-     * the asynchronous committer can use {@link #resolve(String, Properties)} exactly.
-     */
-    public static TableIdentifier resolveForWriter(String logName, Properties properties) {
-        return resolve(logName, properties, true);
-    }
-
-    private static TableIdentifier resolve(
-            String logName, Properties properties, boolean logicalNameDefault) {
         Optional<TableIdentifier> resolved = resolvedTableIdentifier(properties);
         if (resolved.isPresent()) {
             return resolved.get();
@@ -97,9 +75,7 @@ public final class StreamTableNaming {
         if (template != null) {
             return new TableNaming(Optional.empty(), template).toTableIdentifier(stream, asMap(properties));
         }
-        String tableName = logicalNameDefault
-                ? SourceMetadataProperties.logicalName(stream, asMap(properties))
-                : stream.name();
+        String tableName = SourceMetadataProperties.logicalName(stream, asMap(properties));
         return new TableIdentifier(stream.namespace(), tableName);
     }
 

@@ -169,13 +169,6 @@ public class UpsertCommitFileRunner extends AbstractCommitRunner implements Comm
                             }
                         }
                     }
-                } else if (icebergCompactStreamTask.getWriteResult() != null) {
-                    DataFile[] dataFiles = icebergCompactStreamTask.getWriteResult().dataFiles();
-                    if (dataFiles != null) {
-                        for (DataFile dataFile : dataFiles) {
-                            compactionMetrics.getCommittedParquetFileBytes().set(dataFile.fileSizeInBytes());
-                        }
-                    }
                 }
             }
 
@@ -283,9 +276,6 @@ public class UpsertCommitFileRunner extends AbstractCommitRunner implements Comm
             if (icebergCompactStreamTask.getWriteResults() != null
                     && !icebergCompactStreamTask.getWriteResults().isEmpty()) {
                 return ParquetFileStat.fromWriteResults(icebergCompactStreamTask.getWriteResults(), tags);
-            }
-            if (icebergCompactStreamTask.getWriteResult() != null) {
-                return ParquetFileStat.fromWriteResults(List.of(icebergCompactStreamTask.getWriteResult()), tags);
             }
         }
         if (compactStreamTask instanceof DeltaCompactStreamTask deltaCompactStreamTask) {

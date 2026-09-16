@@ -178,9 +178,12 @@ Internal Parquet CO generation runs independently of SDT and does not require a 
 The destination backend is selected by its catalog type and materializer factory. Internal CO
 cleanup deletes stream storage files and indexes without changing SDT tables.
 
-`compactedObjectSchemaEvolutionEnabled` (default `false`) controls recording the per-file offset
-index when a compaction task produces multiple CO files as schemas evolve. Existing persisted
-CO index metadata remains readable.
+An external default policy is generated at startup only when both `materializationEnabled`
+and SDT are enabled (`clusterSdtEnabled`, with `sdt.enabled` taking precedence).
+Disabling SDT prevents this automatic policy creation while preserving internal CO compaction.
+
+CO write results always record the per-file offset index, including when schema changes
+produce multiple files in one compaction task. No configuration switch is required.
 
 ## Supported Sinks
 

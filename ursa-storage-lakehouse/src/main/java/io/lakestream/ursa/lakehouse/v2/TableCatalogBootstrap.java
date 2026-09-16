@@ -33,7 +33,7 @@ import java.util.concurrent.CompletionException;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Translates legacy lakehouse configuration keys into {@link TableCatalog} records and
+ * Translates lakehouse configuration keys into {@link TableCatalog} records and
  * registers them via {@link StreamCatalog#registerTableCatalog(TableCatalog)}.
  *
  * <p>Recognised prefixes:
@@ -89,7 +89,7 @@ public final class TableCatalogBootstrap {
     }
 
     /**
-     * Parses legacy catalog configuration from {@code properties} and registers
+     * Parses catalog configuration from {@code properties} and registers
      * each recognised group as a {@link TableCatalog} via {@code streamCatalog}.
      *
      * @param streamCatalog target catalog (must be non-null)
@@ -145,21 +145,22 @@ public final class TableCatalogBootstrap {
 
     /**
      * When {@code materializationEnabled=true} and a {@code materializationDefaultNamespace} is set,
-     * synthesizes a default {@link TableCatalog} from the flat legacy lakehouse config and attaches a
+     * synthesizes a default {@link TableCatalog} from the flat lakehouse config and attaches a
      * default {@link TableMaterializationPolicy} (EXTERNAL, referencing that catalog) to that
      * namespace. Unless an explicit naming template is configured, delivered tables use the source
      * logical name recorded on each stream. This makes catalog-side materialization resolution
      * succeed so the new {@code maybeMaterialize} pipeline materializes every stream in the namespace
-     * — the same coverage the legacy global-config pipeline had — without per-stream policy authoring.
+     * without per-stream policy authoring.
      *
-     * <p>No-op when the flag is off or no default namespace is configured (then streams must carry
-     * explicit policies). The flat lakehouse props are placed in the catalog's {@code properties()} so
-     * {@code LakehouseWriterFactory.buildConfiguration} re-emits them as the top-level keys the
-     * writers read.
+     * <p>No-op when materialization or SDT is disabled. Explicit catalog policies remain independent
+     * of this configuration default-policy bridge. The flat lakehouse props are placed in the catalog's
+     * {@code properties()} so {@code LakehouseWriterFactory.buildConfiguration} re-emits them as
+     * the top-level keys the writers read.
      */
     static void bootstrapDefaultMaterialization(StreamCatalog streamCatalog, Properties properties,
                                                 List<String> registered, List<String> errors) {
-        if (!Boolean.parseBoolean(properties.getProperty("materializationEnabled", "false"))) {
+        if (!Boolean.parseBoolean(properties.getProperty("materializationEnabled", "false"))
+                || !DynamicConfigs.fromTaskProperties(properties, propertiesToMap(properties)).sdtEnabled()) {
             return;
         }
         // materializationDefaultNamespace scopes the synthesized default policy to a single namespace.
@@ -232,10 +233,10 @@ public final class TableCatalogBootstrap {
     }
 
     /**
-     * Synthesizes a ({@link TableCatalog}, {@link TableMaterializationPolicy}) from the flat legacy
+     * Synthesizes a ({@link TableCatalog}, {@link TableMaterializationPolicy}) from the flat
      * lakehouse config, or {@link Optional#empty()} when {@code lakehouseType} is unset/unsupported.
      * Shared by the startup default-policy bridge (which registers the catalog and scopes the policy to
-     * a namespace / cluster) and the per-task compatibility resolution
+     * a namespace / cluster) and the per-task configuration resolution
      * ({@link #resolveFromProperties}). The policy is enabled. Explicit {@code tableNameTemplate}
      * configuration is preserved; otherwise policy
      * resolution selects the source logical name. ClickHouse retains an implicit template because
@@ -305,12 +306,12 @@ public final class TableCatalogBootstrap {
             tableNaming = Optional.empty();
         }
 
-        // Carry the legacy DynamicConfigs / flat properties into the STRUCTURED policy fields so sinks
+        // Carry the DynamicConfigs / flat properties into the STRUCTURED policy fields so sinks
         // that read the policy (ClickHouse reads primaryKey / framework.writeMode / commit.batchSize;
         // ClickHouseTableEngine.forPolicy derives the engine from writeMode + primaryKey) behave the
         // same as the lakehouse writers, which read the equivalent flat keys from catalog.properties().
         // Absent values stay empty so the sink applies its own default.
-        DynamicConfigs dc = DynamicConfigs.fromProperties(properties);
+        DynamicConfigs dc = DynamicConfigs.fromTaskProperties(properties, propertiesToMap(properties));
         Optional<List<String>> primaryKey = dc.identifierFields()
                 .map(TableCatalogBootstrap::splitColumns)
                 .filter(cols -> !cols.isEmpty());
@@ -365,12 +366,12 @@ public final class TableCatalogBootstrap {
     }
 
     /**
-     * Resolves an external destination from legacy task properties when SDT is enabled.
+     * Resolves an external destination from task properties when SDT is enabled.
      * Without a destination, a NONE catalog keeps internal CO compaction running independently.
      */
     public static Optional<ResolvedMaterialization> resolveFromProperties(Properties properties,
                                                                           StreamIdentifier streamId) {
-        DynamicConfigs dynamicConfigs = DynamicConfigs.fromProperties(properties);
+        DynamicConfigs dynamicConfigs = DynamicConfigs.fromTaskProperties(properties, propertiesToMap(properties));
         CatalogAndPolicy cp = dynamicConfigs.sdtEnabled()
                 ? buildCatalogAndPolicy(properties).orElse(null) : null;
         if (cp == null) {

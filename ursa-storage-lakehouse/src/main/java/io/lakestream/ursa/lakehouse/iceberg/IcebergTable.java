@@ -1365,13 +1365,13 @@ public class IcebergTable {
     /**
      * Resolves the table for {@code topic}, the one way table identity is derived.
      *
-     * <p>Writers resolve through {@link StreamTableNaming#resolveForWriter}; new tasks persist that
+     * <p>Writers resolve through {@link StreamTableNaming#resolve}; new tasks persist that
      * result for committers. A second derivation that skipped the configuration would put them out of
      * step, and the symptom is silent: data files land in the warehouse and no snapshot ever
      * references them.
      */
     public static TableIdentifier getTableIdentifierByTopic(String topic, LakehouseConfiguration config) {
-        return toIceberg(StreamTableNaming.resolveForWriter(topic, config.getProperties()));
+        return toIceberg(StreamTableNaming.resolve(topic, config.getProperties()));
     }
 
     private static TableIdentifier toIceberg(io.lakestream.api.materialization.TableIdentifier identifier) {

@@ -285,6 +285,7 @@ class TableCatalogBootstrapTest {
         // so the new pipeline materializes every stream in that namespace by just flipping the flag.
         Properties props = new Properties();
         props.setProperty("materializationEnabled", "true");
+        props.setProperty("clusterSdtEnabled", "true");
         props.setProperty("materializationDefaultNamespace", "public/default");
         props.setProperty("lakehouseType", "DELTA");
         props.setProperty("cloudStorageEndpoint", "http://localstack:4566");
@@ -314,6 +315,7 @@ class TableCatalogBootstrapTest {
     void tableNameTemplateOverridesTheSynthesizedDefault() {
         Properties props = new Properties();
         props.setProperty("materializationEnabled", "true");
+        props.setProperty("clusterSdtEnabled", "true");
         props.setProperty("materializationDefaultNamespace", "public/default");
         props.setProperty("lakehouseType", "DELTA");
         props.setProperty(StreamTableNaming.TABLE_NAME_TEMPLATE_PROPERTY, "${stream.name}_v2");
@@ -329,6 +331,7 @@ class TableCatalogBootstrapTest {
     void tableNameTemplateMayInterpolateStreamProperties() {
         Properties props = new Properties();
         props.setProperty("materializationEnabled", "true");
+        props.setProperty("clusterSdtEnabled", "true");
         props.setProperty("materializationDefaultNamespace", "public/default");
         props.setProperty("lakehouseType", "ICEBERG");
         props.setProperty(StreamTableNaming.TABLE_NAME_TEMPLATE_PROPERTY,
@@ -349,6 +352,7 @@ class TableCatalogBootstrapTest {
         // database (a valid, existing DB), since the stream namespace is not a usable database name.
         Properties props = new Properties();
         props.setProperty("materializationEnabled", "true");
+        props.setProperty("clusterSdtEnabled", "true");
         props.setProperty("materializationDefaultNamespace", "public/default");
         props.setProperty("lakehouseType", "CLICKHOUSE");
         props.setProperty("dsn", "jdbc:ch://clickhouse:8123/default");
@@ -390,6 +394,54 @@ class TableCatalogBootstrapTest {
     }
 
     @Test
+    void defaultPolicyBridgeSkipsDisabledSdtClusterWide() {
+        assertDisabledSdtDoesNotCreateDefaultPolicy(false);
+    }
+
+    @Test
+    void defaultPolicyBridgeSkipsDisabledSdtForNamespace() {
+        assertDisabledSdtDoesNotCreateDefaultPolicy(true);
+    }
+
+    private void assertDisabledSdtDoesNotCreateDefaultPolicy(boolean namespaceScoped) {
+        Properties props = new Properties();
+        props.setProperty("materializationEnabled", "true");
+        props.setProperty("clusterSdtEnabled", "false");
+        props.setProperty("lakehouseType", "ICEBERG");
+        if (namespaceScoped) {
+            props.setProperty("materializationDefaultNamespace", "default");
+        }
+
+        BootstrapResult result = TableCatalogBootstrap.bootstrap(streamCatalog, props);
+
+        assertThat(result.errors()).isEmpty();
+        assertThat(registry).isEmpty();
+        assertThat(namespacePolicies).isEmpty();
+        assertThat(clusterDefaultPolicy.get()).isNull();
+        assertThat(TableCatalogBootstrap.resolveFromProperties(props,
+                new StreamIdentifier("default", "events")))
+                .hasValueSatisfying(resolved -> assertThat(resolved.catalog().type())
+                        .isEqualTo(TableCatalogType.NONE));
+    }
+
+    @Test
+    void sdtPropertyOverrideDisablesBootstrapAndFallbackExternalSink() {
+        Properties props = new Properties();
+        props.setProperty("materializationEnabled", "true");
+        props.setProperty("clusterSdtEnabled", "true");
+        props.setProperty("sdt.enabled", "false");
+        props.setProperty("lakehouseType", "ICEBERG");
+
+        TableCatalogBootstrap.bootstrap(streamCatalog, props);
+
+        assertThat(registry).isEmpty();
+        assertThat(clusterDefaultPolicy.get()).isNull();
+        assertThat(TableCatalogBootstrap.resolveFromProperties(props, new StreamIdentifier("default", "events")))
+                .hasValueSatisfying(resolved -> assertThat(resolved.catalog().type())
+                        .isEqualTo(TableCatalogType.NONE));
+    }
+
+    @Test
     void defaultPolicyBridgeNoOpWithoutFlag() {
         Properties props = new Properties();
         props.setProperty("materializationDefaultNamespace", "public/default");
@@ -407,6 +459,7 @@ class TableCatalogBootstrapTest {
         // is applied cluster-wide (the lowest-priority baseline), not scoped to any namespace.
         Properties props = new Properties();
         props.setProperty("materializationEnabled", "true");
+        props.setProperty("clusterSdtEnabled", "true");
         props.setProperty("lakehouseType", "DELTA");
 
         TableCatalogBootstrap.bootstrap(streamCatalog, props);

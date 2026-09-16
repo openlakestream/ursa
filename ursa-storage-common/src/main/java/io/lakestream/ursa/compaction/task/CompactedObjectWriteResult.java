@@ -12,7 +12,7 @@ import org.jetbrains.annotations.NotNull;
 
 @Builder
 @Data
-public class ManagedWriteResult implements Comparable<ManagedWriteResult>, Serializable {
+public class CompactedObjectWriteResult implements Comparable<CompactedObjectWriteResult>, Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
@@ -25,7 +25,7 @@ public class ManagedWriteResult implements Comparable<ManagedWriteResult>, Seria
     private long lastBatchId;
 
     @Override
-    public int compareTo(@NotNull ManagedWriteResult o) {
+    public int compareTo(@NotNull CompactedObjectWriteResult o) {
         int c = Long.compare(this.lastEntryId, o.lastEntryId);
         if (c != 0) {
             return c;

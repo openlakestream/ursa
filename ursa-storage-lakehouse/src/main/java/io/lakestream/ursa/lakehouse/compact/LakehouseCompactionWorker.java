@@ -42,7 +42,6 @@ public class LakehouseCompactionWorker implements CompactionTaskProcessor {
     private final CompactTaskManager compactTaskManager;
     private final CompactionMetrics compactionMetrics;
     private final AtomicDouble avgEntrySize = new AtomicDouble(1024);
-    private final boolean compactedObjectSchemaEvolutionEnabled;
     private final boolean skipMarkerMessages;
     private final long readTimeoutSeconds;
     private final long maxWaitForTxnResolutionSeconds;
@@ -65,8 +64,6 @@ public class LakehouseCompactionWorker implements CompactionTaskProcessor {
         this.entryReaderFactory = entryReaderFactory;
         this.compactTaskManager = compactTaskManager;
         this.compactionMetrics = metrics;
-        this.compactedObjectSchemaEvolutionEnabled = Boolean.parseBoolean(storageConfig
-            .getProperties().getOrDefault("compactedObjectSchemaEvolutionEnabled", "false").toString());
         this.skipMarkerMessages = Boolean.parseBoolean(storageConfig.getProperties()
             .getOrDefault("skipMarkerMessages", "false").toString());
         this.readTimeoutSeconds = Long.parseLong(storageConfig.getProperties()
@@ -76,7 +73,7 @@ public class LakehouseCompactionWorker implements CompactionTaskProcessor {
             .getOrDefault("walReadMaxWaitForTxnResolutionSeconds",
                 String.valueOf(EntryReaderOptions.DEFAULT_MAX_WAIT_FOR_TXN_RESOLUTION_SECONDS)).toString());
         this.taskCompleter =
-            new CompactionTaskCompleter(compactTaskManager, compactedObjectSchemaEvolutionEnabled);
+            new CompactionTaskCompleter(compactTaskManager);
     }
 
     public void doCompact(CompactStreamTask task) throws Exception {
@@ -112,7 +109,7 @@ public class LakehouseCompactionWorker implements CompactionTaskProcessor {
                 namingProperties.putAll(propertiesForWriter);
                 Map<String, String> resolvedProperties = StreamTableNaming.withResolvedTableIdentifier(
                         propertiesForWriter,
-                        StreamTableNaming.resolveForWriter(topic, namingProperties));
+                        StreamTableNaming.resolve(topic, namingProperties));
                 propertiesForWriter.clear();
                 propertiesForWriter.putAll(resolvedProperties);
                 task.setProperties(resolvedProperties);

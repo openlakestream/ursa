@@ -50,7 +50,7 @@ public class DeltaExternalDLTTableWriter implements LakehouseRecordWriter<Failur
         this.topic = topic;
         this.config = config;
         this.metrics = LakehouseWriterMetrics.getInstance(provider);
-        var mainIdentifier = StreamTableNaming.resolveForWriter(topic, config.getProperties());
+        var mainIdentifier = StreamTableNaming.resolve(topic, config.getProperties());
         String dltTopic = StreamTableNaming.qualifiedName(
                 StreamTableNaming.deadLetterTable(mainIdentifier, config.getDltSuffix()));
         this.deltaTable = ExternalDeltaTableFactory.getDeltaTable(config, dltTopic);

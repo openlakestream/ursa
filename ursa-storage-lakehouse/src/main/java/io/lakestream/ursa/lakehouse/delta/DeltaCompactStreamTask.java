@@ -27,6 +27,6 @@ public class DeltaCompactStreamTask extends CompactStreamTask {
                 task.getFileFullPath(), task.getFileSize(), task.getPartitionValues(), task.getUnCommittedIndex(),
                 task.getStats(), task.getRealStartOffset(), task.getRealEndOffset(), task.getMessageWrittenToUrsaTime(),
                 task.getProperties(), task.getNumberOfRecordsInCompactedFile(),
-                task.getTaskQueueType(), task.getManagedWriteResults());
+                task.getTaskQueueType(), task.getCompactedObjectWriteResults());
     }
 }

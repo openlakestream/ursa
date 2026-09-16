@@ -8,7 +8,7 @@ import static io.lakestream.ursa.lakehouse.v2.AbstractLakehouseWriter.BATCH_MESS
 
 import io.lakestream.ursa.compaction.CompactTaskManager;
 import io.lakestream.ursa.compaction.task.CompactStreamTask;
-import io.lakestream.ursa.compaction.task.ManagedWriteResult;
+import io.lakestream.ursa.compaction.task.CompactedObjectWriteResult;
 import io.lakestream.ursa.exception.ExceptionCode;
 import io.lakestream.ursa.exception.ExceptionWithCode;
 import io.lakestream.ursa.lakehouse.delta.DeltaCompactStreamTask;
@@ -39,12 +39,9 @@ import org.apache.iceberg.io.WriteResult;
 public class CompactionTaskCompleter {
 
     private final CompactTaskManager compactTaskManager;
-    private final boolean compactedObjectSchemaEvolutionEnabled;
 
-    public CompactionTaskCompleter(CompactTaskManager compactTaskManager,
-                                   boolean compactedObjectSchemaEvolutionEnabled) {
+    public CompactionTaskCompleter(CompactTaskManager compactTaskManager) {
         this.compactTaskManager = compactTaskManager;
-        this.compactedObjectSchemaEvolutionEnabled = compactedObjectSchemaEvolutionEnabled;
     }
 
     /**
@@ -96,10 +93,7 @@ public class CompactionTaskCompleter {
         task.setStats(stat.getStats());
         task.setPartitionValues(Collections.emptyMap());
 
-        if (!compactedObjectSchemaEvolutionEnabled) {
-            return;
-        }
-        TreeSet<ManagedWriteResult> managedWriteResults = new TreeSet<>();
+        TreeSet<CompactedObjectWriteResult> compactedObjectWriteResults = new TreeSet<>();
         for (IWriteResult writeResult : writeResults) {
             if (writeResult instanceof ParquetWriteResult pwr) {
                 var filePath = pwr.getDataFile();
@@ -109,7 +103,7 @@ public class CompactionTaskCompleter {
                 var messageCountIntValue = Math.toIntExact(messageCount.get());
                 long lastEntryId = (long) pwr.getExtraMetadata().getOrDefault("lastEntryIdInFile", -1L);
                 long lastBatchId = (long) pwr.getExtraMetadata().getOrDefault("lastBatchIdInFile", -1L);
-                var mwr = ManagedWriteResult.builder()
+                var result = CompactedObjectWriteResult.builder()
                     .filePath(filePath)
                     .fullFilePath(fileFullPath)
                     .fileSize(fileSize)
@@ -117,10 +111,10 @@ public class CompactionTaskCompleter {
                     .lastEntryId(lastEntryId)
                     .lastBatchId(lastBatchId)
                     .build();
-                managedWriteResults.add(mwr);
+                compactedObjectWriteResults.add(result);
             }
         }
-        task.setManagedWriteResults(managedWriteResults);
+        task.setCompactedObjectWriteResults(compactedObjectWriteResults);
     }
 
     private Optional<CompactStreamTask> completeExternalCompaction(CompactStreamTask task,

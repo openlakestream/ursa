@@ -29,8 +29,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class CompactedObjectFileIndex {
 
-    // Persisted metadata key: keep it stable so existing compacted objects remain readable.
-    public static final String NAME = "ManagedTableFileIndex";
+    // Metadata key for the per-file offset index.
+    public static final String NAME = "CompactedObjectFileIndex";
     private ByteBuffer buffer;
     private boolean sealed = false;
     private final TreeMap<Long, String> resultCache = new TreeMap<>();

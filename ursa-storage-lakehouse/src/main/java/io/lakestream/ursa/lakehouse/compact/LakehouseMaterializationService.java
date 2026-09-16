@@ -132,8 +132,8 @@ public class LakehouseMaterializationService implements MaterializationService {
     public Optional<ResolvedMaterialization> resolveFromTaskProperties(
             StreamIdentifier streamId, String topic, Map<String, String> taskProperties) {
         ensureOpen();
-        // Compatibility: synthesize a catalog + policy from the deployment config merged with the task's
-        // properties (legacy DynamicConfigs + catalog config), so a stream with no stream/namespace/
+        // Resolve a catalog and policy from the deployment config merged with the task's
+        // properties (DynamicConfigs + catalog config), so a stream with no stream/namespace/
         // cluster policy still materializes when the task carries the materialization config. Task
         // properties override the deployment defaults.
         Properties merged = new Properties();
@@ -176,7 +176,7 @@ public class LakehouseMaterializationService implements MaterializationService {
             task.startOffset(), task.endOffset(), streamId.fullName(), catalog.name(), catalogType,
             resolved.tableIdentifier().namespace(), resolved.tableIdentifier().name());
 
-        // Carry the task's properties (legacy DynamicConfigs: sdtCatalogName, identifierFields,
+        // Carry the task's properties (DynamicConfigs: sdtCatalogName, identifierFields,
         // upsertMode, baseSchemaVersion, …) so the sink stays compatible with
         // task-property-driven materialization. Source entries always come from Ursa StorageApi.
         final Map<String, String> sourceTaskProperties = sourceTaskProperties(task);
@@ -472,13 +472,13 @@ public class LakehouseMaterializationService implements MaterializationService {
         }
         if (compactedObjectResults.isEmpty() && externalResults.isEmpty() && dltResults.isEmpty()) {
             // Inline-commit sink (e.g. ClickHouse) with no internal file results: nothing to group-commit.
-            log.info("Retiring inline-committed task {} for stream {}: no managed or external write results",
+            log.info("Retiring inline-committed task {} for stream {}: no internal or external write results",
                     sourceTask.getTaskName(), task.streamMetadata().identifier().fullName());
             retireInlineCommittedTask(task);
             return;
         }
         CompactionTaskCompleter completer =
-                new CompactionTaskCompleter(compactTaskManager, compactedObjectSchemaEvolutionEnabled());
+                new CompactionTaskCompleter(compactTaskManager);
         try {
             completer.completeCompaction(sourceTask, compactedObjectResults, externalResults, dltResults);
         } catch (MaterializationException e) {
@@ -529,11 +529,6 @@ public class LakehouseMaterializationService implements MaterializationService {
             throw new MaterializationException(ExceptionCode.LAKEHOUSE_COMMIT_ERROR,
                     "Failed to retire inline-committed task " + sourceTask.getTaskName(), e);
         }
-    }
-
-    private boolean compactedObjectSchemaEvolutionEnabled() {
-        return config != null && Boolean.parseBoolean(
-                config.additionalProperties().getOrDefault("compactedObjectSchemaEvolutionEnabled", "false"));
     }
 
     /** Test seam: inject a stub {@link EntryReaderProvider} so the read loop runs without storage. */
@@ -647,7 +642,7 @@ public class LakehouseMaterializationService implements MaterializationService {
     /**
      * Pulls the entry-level event timestamp out of {@link LakehouseEntryMetadata} when present.
      * Raw entries read straight off the WAL carry no metadata yet (the sink decodes the batch and
-     * resolves per-message metadatan internally), so this falls back to {@code 0L} in that case.
+     * resolves per-message metadata internally), so this falls back to {@code 0L} in that case.
      */
     private static long extractTimestamp(GenericEntry entry) {
         Optional<LakehouseEntryMetadata> metadata = entry.metadata();

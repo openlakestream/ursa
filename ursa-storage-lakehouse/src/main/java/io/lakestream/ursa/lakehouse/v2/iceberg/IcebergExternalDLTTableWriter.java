@@ -117,7 +117,7 @@ public class IcebergExternalDLTTableWriter implements LakehouseRecordWriter<Fail
 
     private static IcebergTable initIcebergTable(Schema schema, String topic, LakehouseConfiguration config) {
         var dltIdentifier = StreamTableNaming.deadLetterTable(
-                StreamTableNaming.resolveForWriter(topic, config.getProperties()), config.getDltSuffix());
+                StreamTableNaming.resolve(topic, config.getProperties()), config.getDltSuffix());
 
         var builder = TableOptions.builder();
         builder.schema(schema);
