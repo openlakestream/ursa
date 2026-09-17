@@ -6,6 +6,7 @@ package io.lakestream.ursa.compact;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -23,16 +24,21 @@ import io.lakestream.ursa.compaction.CompactTaskManager;
 import io.lakestream.ursa.compaction.metrics.CompactionMetrics;
 import io.lakestream.ursa.compaction.task.CompactStreamTask;
 import io.lakestream.ursa.compaction.task.PackagedCompactStreamTask;
+import io.lakestream.ursa.lakehouse.v2.TableCatalogBootstrap;
 import io.lakestream.ursa.materialization.MaterializationService;
 import io.lakestream.ursa.materialization.MaterializationTask;
 import io.lakestream.ursa.storage.impl.StorageConfig;
 import io.lakestream.ursa.storage.impl.compaction.CompactionService;
 import io.lakestream.ursa.storage.impl.compaction.CompactionTaskProviderV2;
+import java.lang.reflect.Method;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -127,6 +133,63 @@ public class CompactionWorkerMaterializationDispatchTest {
         thread.join(2000);
 
         verify(materializationService).materialize(any(MaterializationTask.class));
+    }
+
+    @Test
+    public void bootstrapWithSdtDisabledDispatchesInternalCompaction() throws Exception {
+        assertBootstrapDispatch(false, TableCatalogType.NONE);
+    }
+
+    @Test
+    public void bootstrapWithSdtEnabledDispatchesExternalMaterialization() throws Exception {
+        assertBootstrapDispatch(true, TableCatalogType.ICEBERG);
+    }
+
+    private void assertBootstrapDispatch(boolean sdtEnabled, TableCatalogType expectedType) throws Exception {
+        Properties props = new Properties();
+        props.setProperty("materializationEnabled", "true");
+        props.setProperty("lakehouseType", "ICEBERG");
+        props.setProperty("clusterSdtEnabled", Boolean.toString(sdtEnabled));
+        Map<String, TableCatalog> catalogs = new HashMap<>();
+        AtomicReference<TableMaterializationPolicy> defaultPolicy = new AtomicReference<>();
+        lenient().when(streamCatalog.registerTableCatalog(any())).thenAnswer(invocation -> {
+            TableCatalog catalog = invocation.getArgument(0);
+            catalogs.put(catalog.name(), catalog);
+            return CompletableFuture.completedFuture(null);
+        });
+        lenient().when(streamCatalog.setClusterDefaultMaterialization(any())).thenAnswer(invocation -> {
+            defaultPolicy.set(invocation.getArgument(0));
+            return CompletableFuture.completedFuture(null);
+        });
+        assertEquals(List.of(), TableCatalogBootstrap.bootstrap(streamCatalog, props).errors());
+
+        CompactStreamTask task = new CompactStreamTask();
+        task.setTopic("default/events-partition-0");
+        task.setStartOffset(0L);
+        task.setEndOffset(10L);
+        stubStream(task, Optional.empty());
+        when(streamCatalog.resolveMaterialization(any())).thenAnswer(invocation ->
+                CompletableFuture.completedFuture(TableMaterializationPolicy.resolve(
+                        Optional.ofNullable(defaultPolicy.get()), Optional.empty(), invocation.getArgument(0),
+                        name -> Optional.ofNullable(catalogs.get(name)), Map.of())));
+        lenient().when(materializationService.resolveFromTaskProperties(any(), any(), any()))
+                .thenAnswer(invocation -> TableCatalogBootstrap.resolveFromProperties(props, invocation.getArgument(0)));
+        lenient().when(streamCatalog.getTableCatalog(any())).thenAnswer(invocation ->
+                CompletableFuture.completedFuture(catalogs.get(invocation.getArgument(0))));
+
+        // Drive one dispatch synchronously, including the real startup policy and fallback resolver.
+        Method dispatch = CompactionWorker.class.getDeclaredMethod("maybeMaterialize", CompactStreamTask.class);
+        dispatch.setAccessible(true);
+        dispatch.invoke(createWorker(), task);
+
+        ArgumentCaptor<MaterializationTask> captor = ArgumentCaptor.forClass(MaterializationTask.class);
+        verify(materializationService).materialize(captor.capture());
+        assertEquals(expectedType, captor.getValue().resolvedMaterialization().catalog().type());
+        assertEquals(task, captor.getValue().sourceTask());
+        if (!sdtEnabled) {
+            verify(streamCatalog, never()).setClusterDefaultMaterialization(any());
+            verify(streamCatalog, never()).registerTableCatalog(any());
+        }
     }
 
     @Test

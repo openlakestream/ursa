@@ -19,10 +19,7 @@ public class ExternalDeltaTableFactory {
     public static ExternalDeltaTable getDeltaTable(LakehouseConfiguration config, String parentTopic) {
         UnityCatalogApi unityCatalogApi = UnityCatalogApi.getInstance(config);
         if (!unityCatalogApi.isEnableUnityCatalog()) {
-            if (config.getStreamTableMode() == LakehouseConfiguration.StreamTableMode.EXTERNAL) {
-                return new DirectExternalTable(config, parentTopic);
-            }
-            throw new IllegalArgumentException("Delta uc table must enable Unity catalog.");
+            return new DirectExternalTable(config, parentTopic);
         }
         UnityTableIdentifier identifier = UnityTableIdentifier.parse(parentTopic);
         Optional<TableInfo> tableOpt = unityCatalogApi.getTable(config.getUnityCatalogName(), identifier);

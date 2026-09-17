@@ -7,12 +7,13 @@ package io.lakestream.ursa.compaction.common;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 import java.util.Optional;
 import java.util.TreeMap;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * ManagedTableFileIndex is used to manage the multiple file index in one oxia index. The index must append ordered
+ * CompactedObjectFileIndex is used to manage the multiple file index in one oxia index. The index must append ordered
  * with the offsets.
  *
  * When topic schema changed, the data in one task will write into the different files. We need an index to check
@@ -27,18 +28,19 @@ import lombok.extern.slf4j.Slf4j;
  * not too many.
  */
 @Slf4j
-public class ManagedTableFileIndex {
+public class CompactedObjectFileIndex {
 
-    public static final String NAME = "ManagedTableFileIndex";
+    // Metadata key for the per-file offset index.
+    public static final String NAME = "CompactedObjectFileIndex";
     private ByteBuffer buffer;
     private boolean sealed = false;
     private final TreeMap<Long, String> resultCache = new TreeMap<>();
 
-    public ManagedTableFileIndex(int initialCapacityBytes) {
+    public CompactedObjectFileIndex(int initialCapacityBytes) {
         this.buffer = ByteBuffer.allocate(initialCapacityBytes);
     }
 
-    public ManagedTableFileIndex() {
+    public CompactedObjectFileIndex() {
         this(4 * 1024);
     }
 
@@ -59,6 +61,12 @@ public class ManagedTableFileIndex {
         load();
         checkBounds(offsetToFind);
         return resultCache.ceilingEntry(offsetToFind).getValue();
+    }
+
+    /** Returns every referenced file in offset order, without duplicates. */
+    public List<String> filePaths() {
+        load();
+        return resultCache.values().stream().distinct().toList();
     }
 
     public Optional<Long> getFileBaseOffset(long offsetToFind) throws IllegalArgumentException {
@@ -103,15 +111,15 @@ public class ManagedTableFileIndex {
         return Base64.getEncoder().encodeToString(bytes);
     }
 
-    public static ManagedTableFileIndex deserializeFromString(String base64, int initialCapacityBytes) {
+    public static CompactedObjectFileIndex deserializeFromString(String base64, int initialCapacityBytes) {
         byte[] bytes = Base64.getDecoder().decode(base64);
-        ManagedTableFileIndex idx = new ManagedTableFileIndex(bytes.length);
+        CompactedObjectFileIndex idx = new CompactedObjectFileIndex(bytes.length);
         idx.sealed = true;
         idx.buffer.put(bytes);
         return idx;
     }
 
-    public static ManagedTableFileIndex deserializeFromString(String base64) {
+    public static CompactedObjectFileIndex deserializeFromString(String base64) {
         return deserializeFromString(base64, 4 * 1024);
     }
 

@@ -67,7 +67,6 @@ public class DeltaExternalDLTTableWriterTest {
         lenient().when(config.getDirectExternalStoragePath()).thenReturn("/tmp/direct-external");
         lenient().when(config.getDltSuffix()).thenReturn(LakehouseConfiguration.DEFAULT_DLT_SUFFIX);
         lenient().when(config.getProperties()).thenReturn(new Properties());
-        lenient().when(config.getStreamTableMode()).thenReturn(LakehouseConfiguration.StreamTableMode.EXTERNAL);
         writer = new DeltaExternalDLTTableWriter(topic, config, instrumentProvider);
     }
 

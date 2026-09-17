@@ -8,7 +8,8 @@ import io.lakestream.ursa.compaction.CompactTaskManager;
 import io.lakestream.ursa.compaction.metrics.CompactionMetrics;
 import io.lakestream.ursa.compaction.task.CompactStreamTask;
 import io.lakestream.ursa.exception.ExceptionWithCode;
-import io.lakestream.ursa.lakehouse.LakehouseConfiguration;
+import io.lakestream.ursa.lakehouse.delta.DeltaCompactStreamTask;
+import io.lakestream.ursa.lakehouse.iceberg.IcebergCompactStreamTask;
 import io.lakestream.ursa.lakehouse.utils.TopicName;
 import io.lakestream.ursa.storage.StorageApi;
 import io.lakestream.ursa.storage.impl.StorageConfig;
@@ -17,7 +18,6 @@ import io.lakestream.ursa.storage.impl.compaction.StartStopRunner;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -211,6 +211,12 @@ public class CompactedTaskRunner implements Runnable, StartStopRunner {
 
     void commit(String partitionedTopicName, List<CompactStreamTask> tasks) throws ExceptionWithCode {
         StorageConfig config = storageConfig.withOverrides(tasks.get(0).getProperties());
+        boolean hasExternalResults = tasks.stream().anyMatch(task ->
+                task instanceof IcebergCompactStreamTask || task instanceof DeltaCompactStreamTask);
+        if (!hasExternalResults) {
+            // Internal COs only update stream indexes, including tasks from the legacy worker.
+            config = config.withOverrides(Map.of("lakehouseType", "NONE"));
+        }
         var runner = createCommitRunner(config, partitionedTopicName);
         try {
             runner.commit(tasks);
@@ -230,24 +236,7 @@ public class CompactedTaskRunner implements Runnable, StartStopRunner {
     }
 
     private CommitRunner createCommitRunner(StorageConfig config, String parentTopic) {
-        var isManagedMode = getStreamTableMode(config) == LakehouseConfiguration.StreamTableMode.MANAGED;
-        if (isManagedMode) {
-            return new AppendCommitParquetFileRunner(
-                storageApi,
-                compactTaskManager,
-                config,
-                parentTopic,
-                compactionMetrics
-            );
-        } else {
-            return new UpsertCommitFileRunner(
-                storageApi,
-                compactTaskManager,
-                config,
-                parentTopic,
-                compactionMetrics
-            );
-        }
+        return new UpsertCommitFileRunner(storageApi, compactTaskManager, config, parentTopic, compactionMetrics);
     }
 
     @Override
@@ -272,7 +261,5 @@ public class CompactedTaskRunner implements Runnable, StartStopRunner {
         return isCancel || !isLeader.getAsBoolean();
     }
 
-    public LakehouseConfiguration.StreamTableMode getStreamTableMode(StorageConfig config) {
-        return LakehouseConfiguration.StreamTableMode.valueOf(config.getStreamTableMode().toUpperCase(Locale.ROOT));
-    }
+
 }

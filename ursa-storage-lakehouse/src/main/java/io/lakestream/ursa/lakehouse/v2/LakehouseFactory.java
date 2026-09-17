@@ -14,7 +14,6 @@ import io.lakestream.ursa.lakehouse.v2.delta.DeltaExternalDLTTableWriter;
 import io.lakestream.ursa.lakehouse.v2.delta.DeltaExternalTableWriter;
 import io.lakestream.ursa.lakehouse.v2.iceberg.IcebergExternalDLTTableWriter;
 import io.lakestream.ursa.lakehouse.v2.iceberg.IcebergExternalTableWriter;
-import io.lakestream.ursa.lakehouse.v2.iceberg.IcebergManagedTableWriter;
 import io.lakestream.ursa.lakehouse.v2.io.parquet.ParquetConfig;
 import io.lakestream.ursa.materialization.serde.EntrySerdeFactory;
 import io.lakestream.ursa.materialization.serde.GenericEntry;
@@ -75,41 +74,15 @@ public class LakehouseFactory implements AutoCloseable {
         return new Semaphore(permits);
     }
 
-    public Optional<LakehouseRecordWriter<GenericEntry>> getManagedWriter(String topic, Map<String, String> prop) {
-        log.info("Creating managed writer for topic: {} with properties: {}", topic, prop);
-        LakehouseConfiguration lakehouseConfiguration = generateLakehouseConfiguration(prop);
+    /** Creates the internal compacted-object writer when enabled, independently of table materialization. */
+    public Optional<LakehouseRecordWriter<GenericEntry>> getCompactedObjectWriter(
+            String topic, Map<String, String> prop) {
+        LakehouseConfiguration configuration = generateLakehouseConfiguration(prop);
+        if (!configuration.isCompactedObjectEnabled()) {
+            return Optional.empty();
+        }
         String schemaTopic = KafkaSourceMetadata.topicName(topic, prop);
-
-        var dynamicConfigs = resolveDynamicConfigs(lakehouseConfiguration);
-        if (!dynamicConfigs.sbtEnabled()) {
-            log.info("Skip creating the managed writer for the topic {} because sbt is disabled", topic);
-            return Optional.empty();
-        }
-
-        // todo: to make the kafka tests pass, should remove after support write kafka to the manage writer
-        var skipManagedWriter = lakehouseConfiguration.getProperties().getProperty("skipManagedWriter", "false");
-        if (Boolean.parseBoolean(skipManagedWriter)) {
-            log.info("Skip creating the managed writer for the topic {}", topic);
-            return Optional.empty();
-        }
-
-        if (lakehouseConfiguration.getStreamTableMode() != LakehouseConfiguration.StreamTableMode.MANAGED) {
-            return Optional.of(new LakehouseWriter(
-                    topic, schemaTopic, entrySerdeFactory, lakehouseConfiguration, provider));
-        }
-
-        return switch (lakehouseConfiguration.getLakehouseType()) {
-            case ICEBERG ->
-                Optional.of(new IcebergManagedTableWriter(
-                        topic, schemaTopic, entrySerdeFactory, lakehouseConfiguration, provider));
-            case DELTA ->
-                throw new UnsupportedOperationException("Delta Lakehouse managed writer is not supported yet.");
-            case NONE ->
-                Optional.of(new LakehouseWriter(
-                        topic, schemaTopic, entrySerdeFactory, lakehouseConfiguration, provider));
-            default -> throw new IllegalArgumentException("Unsupported lakehouse type: "
-                + lakehouseConfiguration.getLakehouseType());
-        };
+        return Optional.of(new LakehouseWriter(topic, schemaTopic, entrySerdeFactory, configuration, provider));
     }
 
     public Optional<LakehouseRecordWriter<GenericEntry>> getExternalWriter(
@@ -120,9 +93,6 @@ public class LakehouseFactory implements AutoCloseable {
         var dynamicConfigs = resolveDynamicConfigs(lakehouseConfiguration);
         if (!dynamicConfigs.sdtEnabled()) {
             log.info("Skip creating the external writer for the topic {} because sdt is disabled", topic);
-            return Optional.empty();
-        }
-        if (lakehouseConfiguration.getStreamTableMode() != LakehouseConfiguration.StreamTableMode.EXTERNAL) {
             return Optional.empty();
         }
 
@@ -146,9 +116,6 @@ public class LakehouseFactory implements AutoCloseable {
         var dynamicConfigs = resolveDynamicConfigs(lakehouseConfiguration);
         if (!dynamicConfigs.sdtEnabled()) {
             log.info("Skip creating the external DLT writer for the topic {} because sdt is disabled", topic);
-            return Optional.empty();
-        }
-        if (lakehouseConfiguration.getStreamTableMode() != LakehouseConfiguration.StreamTableMode.EXTERNAL) {
             return Optional.empty();
         }
 

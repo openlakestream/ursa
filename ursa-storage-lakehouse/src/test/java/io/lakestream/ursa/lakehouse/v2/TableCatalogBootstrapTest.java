@@ -22,7 +22,6 @@ import io.lakestream.api.materialization.TableCatalog;
 import io.lakestream.api.materialization.TableCatalogType;
 import io.lakestream.api.materialization.TableIdentifier;
 import io.lakestream.api.materialization.TableMaterializationPolicy;
-import io.lakestream.api.materialization.TableMode;
 import io.lakestream.api.materialization.WriteMode;
 import io.lakestream.ursa.lakehouse.utils.StreamTableNaming;
 import io.lakestream.ursa.lakehouse.v2.TableCatalogBootstrap.BootstrapResult;
@@ -286,9 +285,9 @@ class TableCatalogBootstrapTest {
         // so the new pipeline materializes every stream in that namespace by just flipping the flag.
         Properties props = new Properties();
         props.setProperty("materializationEnabled", "true");
+        props.setProperty("clusterSdtEnabled", "true");
         props.setProperty("materializationDefaultNamespace", "public/default");
         props.setProperty("lakehouseType", "DELTA");
-        props.setProperty("streamTableMode", "EXTERNAL");
         props.setProperty("cloudStorageEndpoint", "http://localstack:4566");
 
         TableCatalogBootstrap.bootstrap(streamCatalog, props);
@@ -309,7 +308,6 @@ class TableCatalogBootstrapTest {
         assertThat(policy).isNotNull();
         assertThat(policy.catalogRef()).contains("default-delta");
         assertThat(policy.enabled()).contains(Boolean.TRUE);
-        assertThat(policy.table().flatMap(t -> t.mode())).contains(TableMode.EXTERNAL);
         assertThat(policy.tableNaming()).isEmpty();
     }
 
@@ -317,9 +315,9 @@ class TableCatalogBootstrapTest {
     void tableNameTemplateOverridesTheSynthesizedDefault() {
         Properties props = new Properties();
         props.setProperty("materializationEnabled", "true");
+        props.setProperty("clusterSdtEnabled", "true");
         props.setProperty("materializationDefaultNamespace", "public/default");
         props.setProperty("lakehouseType", "DELTA");
-        props.setProperty("streamTableMode", "EXTERNAL");
         props.setProperty(StreamTableNaming.TABLE_NAME_TEMPLATE_PROPERTY, "${stream.name}_v2");
 
         TableCatalogBootstrap.bootstrap(streamCatalog, props);
@@ -333,9 +331,9 @@ class TableCatalogBootstrapTest {
     void tableNameTemplateMayInterpolateStreamProperties() {
         Properties props = new Properties();
         props.setProperty("materializationEnabled", "true");
+        props.setProperty("clusterSdtEnabled", "true");
         props.setProperty("materializationDefaultNamespace", "public/default");
         props.setProperty("lakehouseType", "ICEBERG");
-        props.setProperty("streamTableMode", "EXTERNAL");
         props.setProperty(StreamTableNaming.TABLE_NAME_TEMPLATE_PROPERTY,
                 "${stream.property.lakestream.kafka.topic.name}");
 
@@ -354,9 +352,9 @@ class TableCatalogBootstrapTest {
         // database (a valid, existing DB), since the stream namespace is not a usable database name.
         Properties props = new Properties();
         props.setProperty("materializationEnabled", "true");
+        props.setProperty("clusterSdtEnabled", "true");
         props.setProperty("materializationDefaultNamespace", "public/default");
         props.setProperty("lakehouseType", "CLICKHOUSE");
-        props.setProperty("streamTableMode", "EXTERNAL");
         props.setProperty("dsn", "jdbc:ch://clickhouse:8123/default");
         props.setProperty("user", "ursa");
         props.setProperty("password", "secret");
@@ -369,7 +367,7 @@ class TableCatalogBootstrapTest {
         assertThat(catalog.type()).isEqualTo(TableCatalogType.CLICKHOUSE);
         // Connection keys land in connection(); properties() stays empty for ClickHouse.
         // Only genuine connection keys are routed into connection(): the client-v2 JDBC driver rejects
-        // unknown properties, so the compaction config (streamTableMode, clickhouseDatabase, …) must NOT
+        // unknown properties, so the compaction config (compactionPrefix, clickhouseDatabase, …) must NOT
         // leak in. dsn/user/password only.
         assertThat(catalog.connection())
                 .containsOnlyKeys("dsn", "user", "password")
@@ -378,7 +376,6 @@ class TableCatalogBootstrapTest {
                 .containsEntry("password", "secret");
         assertThat(catalog.connection())
                 .doesNotContainKey("materializationEnabled")
-                .doesNotContainKey("streamTableMode")
                 .doesNotContainKey("clickhouseDatabase")
                 .doesNotContainKey("lakehouseType");
         assertThat(catalog.properties()).isEmpty();
@@ -386,7 +383,6 @@ class TableCatalogBootstrapTest {
         TableMaterializationPolicy policy = namespacePolicies.get("public/default");
         assertThat(policy).isNotNull();
         assertThat(policy.catalogRef()).contains("default-clickhouse");
-        assertThat(policy.table().flatMap(t -> t.mode())).contains(TableMode.EXTERNAL);
         assertThat(policy.tableNaming()).isPresent();
         // ClickHouse uses a fixed database namespace, so the full stream namespace is encoded into
         // the table name. Its logical-name variable reads source metadata before falling back to the
@@ -395,6 +391,54 @@ class TableCatalogBootstrapTest {
                 .isEqualTo("${stream.namespace}.${stream.logicalName}");
         // The ClickHouse database (table namespace) is pinned, not derived from the stream namespace.
         assertThat(policy.tableNaming().get().tableNamespacePrefix()).contains("analytics");
+    }
+
+    @Test
+    void defaultPolicyBridgeSkipsDisabledSdtClusterWide() {
+        assertDisabledSdtDoesNotCreateDefaultPolicy(false);
+    }
+
+    @Test
+    void defaultPolicyBridgeSkipsDisabledSdtForNamespace() {
+        assertDisabledSdtDoesNotCreateDefaultPolicy(true);
+    }
+
+    private void assertDisabledSdtDoesNotCreateDefaultPolicy(boolean namespaceScoped) {
+        Properties props = new Properties();
+        props.setProperty("materializationEnabled", "true");
+        props.setProperty("clusterSdtEnabled", "false");
+        props.setProperty("lakehouseType", "ICEBERG");
+        if (namespaceScoped) {
+            props.setProperty("materializationDefaultNamespace", "default");
+        }
+
+        BootstrapResult result = TableCatalogBootstrap.bootstrap(streamCatalog, props);
+
+        assertThat(result.errors()).isEmpty();
+        assertThat(registry).isEmpty();
+        assertThat(namespacePolicies).isEmpty();
+        assertThat(clusterDefaultPolicy.get()).isNull();
+        assertThat(TableCatalogBootstrap.resolveFromProperties(props,
+                new StreamIdentifier("default", "events")))
+                .hasValueSatisfying(resolved -> assertThat(resolved.catalog().type())
+                        .isEqualTo(TableCatalogType.NONE));
+    }
+
+    @Test
+    void sdtPropertyOverrideDisablesBootstrapAndFallbackExternalSink() {
+        Properties props = new Properties();
+        props.setProperty("materializationEnabled", "true");
+        props.setProperty("clusterSdtEnabled", "true");
+        props.setProperty("sdt.enabled", "false");
+        props.setProperty("lakehouseType", "ICEBERG");
+
+        TableCatalogBootstrap.bootstrap(streamCatalog, props);
+
+        assertThat(registry).isEmpty();
+        assertThat(clusterDefaultPolicy.get()).isNull();
+        assertThat(TableCatalogBootstrap.resolveFromProperties(props, new StreamIdentifier("default", "events")))
+                .hasValueSatisfying(resolved -> assertThat(resolved.catalog().type())
+                        .isEqualTo(TableCatalogType.NONE));
     }
 
     @Test
@@ -415,6 +459,7 @@ class TableCatalogBootstrapTest {
         // is applied cluster-wide (the lowest-priority baseline), not scoped to any namespace.
         Properties props = new Properties();
         props.setProperty("materializationEnabled", "true");
+        props.setProperty("clusterSdtEnabled", "true");
         props.setProperty("lakehouseType", "DELTA");
 
         TableCatalogBootstrap.bootstrap(streamCatalog, props);
@@ -452,7 +497,6 @@ class TableCatalogBootstrapTest {
         Properties props = new Properties();
         props.setProperty("sdt.enabled", "true");
         props.setProperty("lakehouseType", "ICEBERG");
-        props.setProperty("streamTableMode", "EXTERNAL");
         props.setProperty(SourceMetadataProperties.LOGICAL_NAME_PROPERTY, "orders");
 
         var resolved = TableCatalogBootstrap.resolveFromProperties(
@@ -508,46 +552,29 @@ class TableCatalogBootstrapTest {
     }
 
     @Test
-    void resolveFromPropertiesReturnsEmptyWhenSdtDisabled() {
+    void resolveFromPropertiesKeepsInternalCompactionWhenSdtDisabled() {
         Properties props = new Properties();
         props.setProperty("sdt.enabled", "false");
         props.setProperty("lakehouseType", "ICEBERG");
-
-        assertThat(TableCatalogBootstrap.resolveFromProperties(
-                props, StreamIdentifier.of("public/test", "topic-a"))).isEmpty();
-    }
-
-    @Test
-    void resolveFromPropertiesSynthesizesManagedMaterializationForSbtOnly() {
-        // Ursa-protocol case: SDT (external table) is off and no lakehouseType/catalog is configured, but
-        // SBT compacts the WAL into topic-grouped parquet Compacted Objects. The task-property fallback
-        // must resolve a managed-only NONE catalog so the internal managed writer materializes with no
-        // external sink — otherwise the worker throws "No effective materialization policy".
-        Properties props = new Properties();
-        props.setProperty("sdt.enabled", "false");
-        props.setProperty("sbt.enabled", "true");
-
         var resolved = TableCatalogBootstrap.resolveFromProperties(
-                props, StreamIdentifier.of("public/test", "topic-a"));
-
-        assertThat(resolved).isPresent();
-        ResolvedMaterialization rm = resolved.get();
-        assertThat(rm.catalog().type()).isEqualTo(TableCatalogType.NONE);
-        assertThat(rm.tableIdentifier().name()).isEqualTo("topic-a");
-        assertThat(rm.effectivePolicy().tableNaming()).isEmpty();
-        assertThat(rm.effectivePolicy().table().flatMap(t -> t.mode())).contains(TableMode.MANAGED);
+                props, StreamIdentifier.of("public/test", "topic-a")).orElseThrow();
+        assertThat(resolved.catalog().type()).isEqualTo(TableCatalogType.NONE);
     }
 
     @Test
-    void resolveFromPropertiesReturnsEmptyWhenSdtOnlyButNoCatalog() {
-        // SDT enabled with no lakehouseType/catalog is a misconfiguration for the external sink, but SBT
-        // defaults to SDT's value — so the managed writer still resolves (managed compaction is the Ursa
-        // baseline). Explicitly disabling SBT leaves nothing to write to.
+    void resolveFromPropertiesKeepsInternalCompactionWithoutAnyTableConfiguration() {
+        var resolved = TableCatalogBootstrap.resolveFromProperties(
+                new Properties(), StreamIdentifier.of("public/test", "topic-a")).orElseThrow();
+        assertThat(resolved.catalog().type()).isEqualTo(TableCatalogType.NONE);
+        assertThat(resolved.tableIdentifier().name()).isEqualTo("topic-a");
+    }
+
+    @Test
+    void resolveFromPropertiesKeepsInternalCompactionWithoutCatalog() {
         Properties props = new Properties();
         props.setProperty("sdt.enabled", "true");
-        props.setProperty("sbt.enabled", "false");
-
-        assertThat(TableCatalogBootstrap.resolveFromProperties(
-                props, StreamIdentifier.of("public/test", "topic-a"))).isEmpty();
+        var resolved = TableCatalogBootstrap.resolveFromProperties(
+                props, StreamIdentifier.of("public/test", "topic-a")).orElseThrow();
+        assertThat(resolved.catalog().type()).isEqualTo(TableCatalogType.NONE);
     }
 }

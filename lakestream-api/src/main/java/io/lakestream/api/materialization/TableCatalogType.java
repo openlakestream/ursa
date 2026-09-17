@@ -22,10 +22,10 @@ public enum TableCatalogType {
     CLICKHOUSE,
 
     /**
-     * No external catalog. Marks a managed-only materialization (SBT / Ursa protocol): the stream is
-     * compacted into topic-grouped parquet Compacted Objects by the internal managed writer, with no
+     * No external catalog. Marks a storage-only materialization (internal CO / Ursa protocol): the stream is
+     * compacted into topic-grouped parquet Compacted Objects by the internal CO writer, with no
      * external table sink. There is no {@code TableMaterializerFactory} for this type — the dispatch
-     * path builds only the managed writer.
+     * path builds only the internal CO writer.
      */
     NONE
 }

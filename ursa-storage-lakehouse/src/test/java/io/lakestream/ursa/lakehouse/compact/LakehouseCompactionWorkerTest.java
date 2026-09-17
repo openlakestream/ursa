@@ -92,7 +92,7 @@ class LakehouseCompactionWorkerTest {
         LakehouseRecordWriter<GenericEntry> externalWriter = mock(LakehouseRecordWriter.class);
         when(externalWriter.close()).thenReturn(List.of(mock(IcebergWriteResult.class)));
         LakehouseFactory lakehouseFactory = mock(LakehouseFactory.class);
-        when(lakehouseFactory.getManagedWriter(eq(topic), anyMap())).thenReturn(Optional.empty());
+        when(lakehouseFactory.getCompactedObjectWriter(eq(topic), anyMap())).thenReturn(Optional.empty());
         when(lakehouseFactory.getExternalWriter(eq(topic), anyMap()))
                 .thenReturn(Optional.of(externalWriter));
         when(lakehouseFactory.getExternalDLTWriter(eq(topic), anyMap())).thenReturn(Optional.empty());

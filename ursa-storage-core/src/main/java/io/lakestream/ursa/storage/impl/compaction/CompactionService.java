@@ -28,7 +28,7 @@ public interface CompactionService {
      *
      * @deprecated Superseded by the materialization SPI dispatch in
      *     {@code CompactionWorker.maybeMaterialize(...)}, which unifies the
-     *     SBT (internal compaction) and SDT (external table) paths. This call
+     *     internal CO (internal compaction) and SDT (external table) paths. This call
      *     is retained as the flag-controlled fallback ({@code materializationEnabled=false})
      *     so deployments can roll back; remove once the SPI path is the sole path.
      */

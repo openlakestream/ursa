@@ -36,9 +36,11 @@ A Compacted Object (CO) is used to store data specific to an individual log. A C
 
 The **Stream Offset Index** is a multi-level index that maintains the mapping from logical offsets to their corresponding physical locations within WAL Objects and Compacted Objects. This index enables efficient offset- and time-based lookups, underpins core streaming semantics such as offset commits, cursor tracking, consumer recovery, and consumer resume. The index is updated incrementally as new data is appended and when old data is compacted. Integrations can add secondary indexes without changing the primary offset space.
 
-### Table Metadata
+### Table Materialization
 
-When Compacted Objects (COs) in Ursa are stored as Parquet files, they can be committed to a lakehouse table without duplicating or re-copying data. This table is known as an "Internal Table" or "SBT" (Stream-Backed Table). This approach is how Ursa Storage achieves "zero-copy" stream-table duality.
+Internal Compacted Objects remain indexed by the Stream Offset Index for streaming reads and replay.
+Table materialization writes a separate copy into an external destination table (SDT). Internal CO
+files are not registered in table catalogs, and their retention is independent of the destination.
 
 ## Schema
 
@@ -53,17 +55,7 @@ Ursa Storage leverages the open table formats for organizing compacted data, pri
 - Partition pruning and file-level statistics
 - Metadata management for efficient queries
 
-Ursa Storage supports two table modes: **Internal Table** vs **External Table**. It can be configured at either cluster-level or per stream-level.
-
-### Internal Table
-
-Internal Table is the internal table storage representation of Compacted Objects of a given stream. It also known as SBT (Stream-Backed Table). Because these Compacted Objects are both indexed by Stream Offset Index and Table Metadata, Ursa manages the entire lifecycle of this table. This table is typically registered as an _external table_ in an external data catalog for data consumption. 
-
-In this mode, stream-table duality is natively supported. All the data can be accessed via either Streaming API or Table API. Consumers can read data as either streams or tables. 
-
-Internal Table is great for raw data. i.e. bronze layer in [Medallion Architecture](https://www.databricks.com/glossary/medallion-architecture).
-
-#### External Table
+### External Table
 
 External Table is an external table outside of Ursa's management, where both data and metadata is managed by external systems. It is also known as "SDT" (Stream-Delivered-to Table). All the data written to the external table is not indexed by Stream Offset Index anymore. So you can't stream read those data from the external table. If you want to stream data back, you still need to keep another copy of data indexed by the Stream Offset Index.
 
@@ -99,6 +91,6 @@ The Compaction Service is a background process that periodically merges smaller,
 
 - Converts row-oriented WAL data into columnar Parquet format
 - Optimizes file sizes for improved query performance
-- Registers compacted files with the table format catalog
+- Materializes records into external destination tables when configured
 - Maintains offset mappings to support seamless stream consumption
 - Enforces retention and deletion policies

@@ -6,7 +6,7 @@ package io.lakestream.ursa.kafka.reader;
 
 import io.lakestream.api.EntryHeader;
 import io.lakestream.api.EntryIndex;
-import io.lakestream.ursa.compaction.common.ManagedTableFileIndex;
+import io.lakestream.ursa.compaction.common.CompactedObjectFileIndex;
 import io.lakestream.ursa.lakestream.reader.CompactedObjectReader;
 import io.lakestream.ursa.storage.Entry;
 import io.lakestream.ursa.storage.OwnedResultFutures;
@@ -49,20 +49,20 @@ final class KafkaLakehouseReader implements CompactedObjectReader {
     }
 
     @Override
-    public Optional<ManagedTableFileIndex> getManagedTableFileIndex(EntryIndex entryIndex) {
+    public Optional<CompactedObjectFileIndex> getCompactedObjectFileIndex(EntryIndex entryIndex) {
         Map<String, String> metadata = entryIndex.extraData().orElse(new HashMap<>());
-        String serialized = metadata.get(ManagedTableFileIndex.NAME);
+        String serialized = metadata.get(CompactedObjectFileIndex.NAME);
         return serialized == null
                 ? Optional.empty()
-                : Optional.of(ManagedTableFileIndex.deserializeFromString(serialized));
+                : Optional.of(CompactedObjectFileIndex.deserializeFromString(serialized));
     }
 
     @Override
     public CompletableFuture<ReadResult> readMessagesWithEntryIndexAsync(
             EntryIndex entryIndex, long startOffset, long baseOffset, long maxNumOfMessages, long maxSize) {
-        Optional<ManagedTableFileIndex> fileIndex;
+        Optional<CompactedObjectFileIndex> fileIndex;
         try {
-            fileIndex = getManagedTableFileIndex(entryIndex);
+            fileIndex = getCompactedObjectFileIndex(entryIndex);
         } catch (RuntimeException error) {
             return CompletableFuture.failedFuture(error);
         }

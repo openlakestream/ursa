@@ -8,7 +8,7 @@ import static io.lakestream.ursa.lakehouse.v2.AbstractLakehouseWriter.BATCH_MESS
 
 import io.lakestream.ursa.compaction.CompactTaskManager;
 import io.lakestream.ursa.compaction.task.CompactStreamTask;
-import io.lakestream.ursa.compaction.task.ManagedWriteResult;
+import io.lakestream.ursa.compaction.task.CompactedObjectWriteResult;
 import io.lakestream.ursa.exception.ExceptionCode;
 import io.lakestream.ursa.exception.ExceptionWithCode;
 import io.lakestream.ursa.lakehouse.delta.DeltaCompactStreamTask;
@@ -39,30 +39,26 @@ import org.apache.iceberg.io.WriteResult;
 public class CompactionTaskCompleter {
 
     private final CompactTaskManager compactTaskManager;
-    private final boolean managedTableSchemaEvolutionEnabled;
 
-    public CompactionTaskCompleter(CompactTaskManager compactTaskManager,
-                                   boolean managedTableSchemaEvolutionEnabled) {
+    public CompactionTaskCompleter(CompactTaskManager compactTaskManager) {
         this.compactTaskManager = compactTaskManager;
-        this.managedTableSchemaEvolutionEnabled = managedTableSchemaEvolutionEnabled;
     }
 
     /**
-     * Records the managed / external write results on the task and persists it as
+     * Records the internal / external write results on the task and persists it as
      * {@code COMPACTED}. At least one of the result lists must be non-empty.
      */
-    public void completeCompaction(CompactStreamTask task, List<IWriteResult> managedResults,
+    public void completeCompaction(CompactStreamTask task, List<IWriteResult> compactedObjectResults,
                                    List<IWriteResult> externalResults, List<IWriteResult> externalDLTResults)
             throws Exception {
 
-        if (managedResults.isEmpty() && externalResults.isEmpty() && externalDLTResults.isEmpty()) {
+        if (compactedObjectResults.isEmpty() && externalResults.isEmpty() && externalDLTResults.isEmpty()) {
             throw new ExceptionWithCode(ExceptionCode.COMPACTION_NO_WRITE_RESULT,
-                String.format("[%s] No write results found for the compaction task %s. It should only happen on "
-                              + "both the sbt and sdt disabled. Please check the configuration of the compaction "
-                              + "or the task properties.", task.getTopic(), task.getTaskName()));
+                String.format("[%s] No write results found for compaction task %s; check source records "
+                              + "and task properties.", task.getTopic(), task.getTaskName()));
         }
 
-        completeManagedCompaction(task, managedResults);
+        completeInternalCompaction(task, compactedObjectResults);
 
         Optional<CompactStreamTask> compactStreamTask = Optional.empty();
         if (!externalResults.isEmpty() || !externalDLTResults.isEmpty()) {
@@ -76,7 +72,7 @@ public class CompactionTaskCompleter {
         }
     }
 
-    private void completeManagedCompaction(CompactStreamTask task, List<IWriteResult> writeResults) {
+    private void completeInternalCompaction(CompactStreamTask task, List<IWriteResult> writeResults) {
         task.setStatus(CompactStreamTask.COMPACTED);
         // Use completion time because the source append timestamp is not available here.
         task.setMessageWrittenToUrsaTime(System.currentTimeMillis());
@@ -87,20 +83,15 @@ public class CompactionTaskCompleter {
             return;
         }
 
-        var wr = (ParquetWriteResult) writeResults.get(0);
         var stat = createParquetFileStat(writeResults);
         task.setFilePath(stat.getFilePath());
         task.setFileFullPath(stat.getFileFullPath());
         task.setFileSize(stat.getFileSize());
-        var messages = (AtomicLong) wr.getExtraMetadata().get(BATCH_MESSAGE_COUNT);
-        task.setNumberOfRecordsInCompactedFile(Math.toIntExact(messages.get()));
         task.setStats(stat.getStats());
         task.setPartitionValues(Collections.emptyMap());
 
-        if (!managedTableSchemaEvolutionEnabled) {
-            return;
-        }
-        TreeSet<ManagedWriteResult> managedWriteResults = new TreeSet<>();
+        long totalMessages = 0;
+        TreeSet<CompactedObjectWriteResult> compactedObjectWriteResults = new TreeSet<>();
         for (IWriteResult writeResult : writeResults) {
             if (writeResult instanceof ParquetWriteResult pwr) {
                 var filePath = pwr.getDataFile();
@@ -108,9 +99,10 @@ public class CompactionTaskCompleter {
                 var fileSize = pwr.getDataFileSize();
                 var messageCount = (AtomicLong) pwr.getExtraMetadata().get(BATCH_MESSAGE_COUNT);
                 var messageCountIntValue = Math.toIntExact(messageCount.get());
+                totalMessages = Math.addExact(totalMessages, messageCountIntValue);
                 long lastEntryId = (long) pwr.getExtraMetadata().getOrDefault("lastEntryIdInFile", -1L);
                 long lastBatchId = (long) pwr.getExtraMetadata().getOrDefault("lastBatchIdInFile", -1L);
-                var mwr = ManagedWriteResult.builder()
+                var result = CompactedObjectWriteResult.builder()
                     .filePath(filePath)
                     .fullFilePath(fileFullPath)
                     .fileSize(fileSize)
@@ -118,10 +110,11 @@ public class CompactionTaskCompleter {
                     .lastEntryId(lastEntryId)
                     .lastBatchId(lastBatchId)
                     .build();
-                managedWriteResults.add(mwr);
+                compactedObjectWriteResults.add(result);
             }
         }
-        task.setManagedWriteResults(managedWriteResults);
+        task.setNumberOfRecordsInCompactedFile(Math.toIntExact(totalMessages));
+        task.setCompactedObjectWriteResults(compactedObjectWriteResults);
     }
 
     private Optional<CompactStreamTask> completeExternalCompaction(CompactStreamTask task,

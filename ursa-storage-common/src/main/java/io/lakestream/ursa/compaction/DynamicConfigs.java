@@ -40,7 +40,6 @@ public class DynamicConfigs {
     private static final Set<String> VALID_KEYS_IN_CONF_FILE = Set.of(
         "clusterSdtEnabled",
         "clusterSdtSuspended",
-        "clusterSbtEnabled",
         "clusterSdtCatalogName",
         "clusterTailCompactDataVisibilityIntervalInSeconds",
         "clusterUpsertModeEnabled",
@@ -51,7 +50,6 @@ public class DynamicConfigs {
     );
 
     private static final Set<String> TASK_EXPOSED_CONFIG_KEYS = Set.of(
-        "clusterSbtEnabled",
         "clusterSdtEnabled",
         "clusterSdtCatalogName",
         "clusterUpsertModeEnabled",
@@ -202,11 +200,6 @@ public class DynamicConfigs {
     public boolean sdtSuspended() {
         var value = getProperty("clusterSdtSuspended");
         return value.map(Boolean::parseBoolean).orElse(false);
-    }
-
-    public boolean sbtEnabled() {
-        var value = getProperty("clusterSbtEnabled");
-        return value.map(Boolean::parseBoolean).orElse(sdtEnabled());
     }
 
     public Optional<String> sdtCatalogName() {

@@ -5,7 +5,7 @@
 package io.lakestream.ursa.lakehouse;
 
 import io.lakestream.api.EntryIndex;
-import io.lakestream.ursa.compaction.common.ManagedTableFileIndex;
+import io.lakestream.ursa.compaction.common.CompactedObjectFileIndex;
 import io.lakestream.ursa.lakehouse.compact.ObjectPool;
 import io.lakestream.ursa.lakehouse.utils.TopicNames;
 import io.lakestream.ursa.lakehouse.v2.LakehouseFactory;
@@ -37,16 +37,16 @@ public class LakehouseKafkaReaderV2 implements CompactedObjectReader {
                                                                     long baseOffset, long maxNumOfMessages,
                                                                     long maxSize) {
         var extraMetadata = entryIndex.extraData().orElse(new HashMap<>());
-        var fileIndexString = extraMetadata.get(ManagedTableFileIndex.NAME);
+        var fileIndexString = extraMetadata.get(CompactedObjectFileIndex.NAME);
         if (fileIndexString == null) {
             return CompletableFuture.failedFuture(
                 new IOException("The required file index is not exists in the index extra metadata, this is "
                                 + "not a valid index for v2 lakehouse reader"));
         }
 
-        var managedTableFileIndex = ManagedTableFileIndex.deserializeFromString(fileIndexString);
+        var compactedObjectFileIndex = CompactedObjectFileIndex.deserializeFromString(fileIndexString);
         try {
-            var filePath = managedTableFileIndex.get(startOffset);
+            var filePath = compactedObjectFileIndex.get(startOffset);
             return readMessagesAsync(filePath, startOffset, baseOffset, maxNumOfMessages, maxSize);
         } catch (IllegalArgumentException illegalArgumentException) {
             return CompletableFuture.failedFuture(illegalArgumentException);

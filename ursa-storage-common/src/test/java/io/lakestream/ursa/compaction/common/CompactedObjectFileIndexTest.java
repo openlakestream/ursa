@@ -10,11 +10,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
 
-public class ManagedTableFileIndexTest {
+public class CompactedObjectFileIndexTest {
 
     @Test
     void testAppendAndGet() {
-        ManagedTableFileIndex idx = new ManagedTableFileIndex(64);
+        CompactedObjectFileIndex idx = new CompactedObjectFileIndex(64);
         idx.append(10L, "data1.parquet");
         idx.append(20L, "data2.parquet");
         idx.append(30L, "data3.parquet");
@@ -36,12 +36,12 @@ public class ManagedTableFileIndexTest {
 
     @Test
     void testSerializeDeserialize() {
-        ManagedTableFileIndex idx = new ManagedTableFileIndex(64);
+        CompactedObjectFileIndex idx = new CompactedObjectFileIndex(64);
         idx.append(1L, "a.parquet");
         idx.append(2L, "b.parquet");
 
         String s = idx.serializeToString();
-        ManagedTableFileIndex idx2 = ManagedTableFileIndex.deserializeFromString(s);
+        CompactedObjectFileIndex idx2 = CompactedObjectFileIndex.deserializeFromString(s);
 
         assertEquals("a.parquet", idx2.get(1L));
         assertEquals("b.parquet", idx2.get(2L));
@@ -51,7 +51,7 @@ public class ManagedTableFileIndexTest {
 
     @Test
     void testEnsureCapacity() {
-        ManagedTableFileIndex idx = new ManagedTableFileIndex(8);
+        CompactedObjectFileIndex idx = new CompactedObjectFileIndex(8);
         String longPath1 = "x".repeat(1024);
         String longPath2 = "y".repeat(2048);
         idx.append(100L, longPath1);

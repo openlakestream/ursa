@@ -76,7 +76,7 @@ public class DeltaExternalTableWriter extends AbstractLakehouseWriter {
                 .map(String::strip).toArray(String[]::new));
         }
         this.parentTopic = StreamTableNaming.qualifiedName(
-                StreamTableNaming.resolveForWriter(topic, config.getProperties()));
+                StreamTableNaming.resolve(topic, config.getProperties()));
         this.deltaTable = ExternalDeltaTableFactory.getDeltaTable(config, parentTopic);
         this.isSchemaEvolutionEnabled = config.isSchemaEvolutionEnabled();
         if (isSchemaEvolutionEnabled) {

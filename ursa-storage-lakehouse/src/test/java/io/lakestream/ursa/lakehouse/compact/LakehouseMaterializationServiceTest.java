@@ -11,14 +11,17 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import io.lakestream.api.EntryHeader;
 import io.lakestream.api.StreamIdentifier;
 import io.lakestream.api.StreamMetadata;
+import io.lakestream.api.materialization.EvolutionPolicy;
 import io.lakestream.api.materialization.MaterializationState;
 import io.lakestream.api.materialization.ResolvedMaterialization;
 import io.lakestream.api.materialization.TableCatalog;
@@ -26,13 +29,23 @@ import io.lakestream.api.materialization.TableCatalogType;
 import io.lakestream.api.materialization.TableConf;
 import io.lakestream.api.materialization.TableIdentifier;
 import io.lakestream.api.materialization.TableMaterializationPolicy;
-import io.lakestream.api.materialization.TableMode;
+import io.lakestream.ursa.compaction.CompactTaskManager;
+import io.lakestream.ursa.compaction.metrics.CompactionMetrics;
 import io.lakestream.ursa.compaction.task.CompactStreamTask;
 import io.lakestream.ursa.exception.ExceptionCode;
+import io.lakestream.ursa.lakehouse.DeltaCommitter;
+import io.lakestream.ursa.lakehouse.IcebergCommitter;
+import io.lakestream.ursa.lakehouse.LakehouseCommitter;
 import io.lakestream.ursa.lakehouse.LakehouseConfiguration;
+import io.lakestream.ursa.lakehouse.delta.DeltaCompactStreamTask;
+import io.lakestream.ursa.lakehouse.iceberg.IcebergCompactStreamTask;
 import io.lakestream.ursa.lakehouse.utils.StreamTableNaming;
 import io.lakestream.ursa.lakehouse.v2.AbstractLakehouseWriter;
 import io.lakestream.ursa.lakehouse.v2.LakehouseFactory;
+import io.lakestream.ursa.lakehouse.v2.LakehouseTableMaterializer;
+import io.lakestream.ursa.lakehouse.v2.delta.DeltaWriteResult;
+import io.lakestream.ursa.lakehouse.v2.iceberg.IcebergWriteResult;
+import io.lakestream.ursa.lakehouse.writer.ParquetFileStat;
 import io.lakestream.ursa.materialization.FailureMessageHandler;
 import io.lakestream.ursa.materialization.MaterializationException;
 import io.lakestream.ursa.materialization.MaterializationMetrics;
@@ -49,21 +62,29 @@ import io.lakestream.ursa.materialization.serde.TableSchemaService;
 import io.lakestream.ursa.materialization.serde.kafka.KafkaSourceMetadata;
 import io.lakestream.ursa.storage.Entry;
 import io.lakestream.ursa.storage.StorageApi;
+import io.lakestream.ursa.storage.impl.StorageConfig;
 import io.netty.buffer.Unpooled;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.io.WriteResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.ArgumentCaptor;
 import org.slf4j.LoggerFactory;
 
 @Tag("lakehouse")
@@ -96,6 +117,106 @@ class LakehouseMaterializationServiceTest {
         if (service != null) {
             service.close();
         }
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = TableCatalogType.class, names = {"ICEBERG", "DELTA"})
+    void disablingCompactedObjectsPreservesExternalCommitAndTaskCompletion(TableCatalogType type) throws Exception {
+        CompactTaskManager manager = initializeWithoutCompactedObjects();
+        AbstractLakehouseWriter writer = mock(AbstractLakehouseWriter.class);
+        WriteResult files = WriteResult.builder().addDataFiles(mock(DataFile.class)).build();
+        var deltaFile = ParquetFileStat.builder().filePath("external.parquet").fileSize(10L).build();
+        when(writer.close()).thenReturn(type == TableCatalogType.ICEBERG
+                ? List.of(new IcebergWriteResult(files))
+                : List.of(new DeltaWriteResult(List.of(deltaFile))));
+        TableMaterializerFactory factory = mock(TableMaterializerFactory.class);
+        when(factory.create(any(), any(), any(), any())).thenAnswer(ignored ->
+                new LakehouseTableMaterializer(writer, EvolutionPolicy.forIceberg()));
+        service.registerFactory(type, factory);
+        CompactStreamTask task = sourceTask("default/orders-partition-0", 17L, Map.of());
+        task.setEndOffset(1L);
+        var resolved = new ResolvedMaterialization(
+                new TableCatalog("external", type, Map.of(), Map.of()),
+                new TableIdentifier("default", "orders"), TableMaterializationPolicy.empty());
+        service.materialize(new MaterializationTask(metadata("default", "orders", Map.of()),
+                resolved, task.getTopic(), 17L, 0L, 1L, task));
+
+        var saved = ArgumentCaptor.forClass(CompactStreamTask.class);
+        verify(manager).updateCompactTask(saved.capture());
+        var compacted = saved.getValue();
+        assertThat(compacted.getStatus()).isEqualTo(CompactStreamTask.COMPACTED);
+        if (compacted instanceof IcebergCompactStreamTask iceberg) {
+            assertThat(iceberg.getWriteResults()).containsExactly(files);
+        } else {
+            assertThat(((DeltaCompactStreamTask) compacted).getDeltaFiles()).containsExactly(deltaFile);
+        }
+        assertThat(compacted.getCompactedObjectWriteResults()).isEmpty();
+        assertThat(compacted.getFilePath()).isNull();
+        verify(manager, never()).deleteCompactTask(any());
+
+        StorageApi storage = mock(StorageApi.class);
+        Properties properties = new Properties();
+        properties.putAll(compacted.getProperties());
+        Class<? extends LakehouseCommitter> committerType = type == TableCatalogType.ICEBERG
+                ? IcebergCommitter.class : DeltaCommitter.class;
+        try (var committers = mockConstruction(committerType)) {
+            var runner = new UpsertCommitFileRunner(storage, manager,
+                    StorageConfig.fromProperties(properties), "default/orders", CompactionMetrics.NOOP);
+            try {
+                runner.commit(List.of(compacted));
+                verify(committers.constructed().get(0)).commit(any());
+                verify(manager).deleteCompactTask(compacted);
+                verifyNoInteractions(storage);
+            } finally {
+                runner.close();
+            }
+        }
+    }
+
+    @Test
+    void disablingCompactedObjectsPreservesInlineSinkTaskCompletion() {
+        CompactTaskManager manager = initializeWithoutCompactedObjects();
+        TableMaterializer<?> sink = mock(TableMaterializer.class);
+        TableMaterializerFactory factory = mock(TableMaterializerFactory.class);
+        when(factory.create(any(), any(), any(), any())).thenAnswer(ignored -> sink);
+        service.registerFactory(TableCatalogType.CLICKHOUSE, factory);
+        CompactStreamTask task = sourceTask("default/orders-partition-0", 17L, Map.of());
+        var resolved = new ResolvedMaterialization(
+                new TableCatalog("external", TableCatalogType.CLICKHOUSE, Map.of(), Map.of()),
+                new TableIdentifier("default", "orders"), TableMaterializationPolicy.empty());
+        service.materialize(new MaterializationTask(metadata("default", "orders", Map.of()),
+                resolved, task.getTopic(), 17L, 0L, 0L, task));
+        verify(sink).commit();
+        assertThat(task.getStatus()).isEqualTo(CompactStreamTask.COMMITTED);
+        verify(manager).updateCompactTask(task);
+        verify(manager).deleteCompactTask(task);
+    }
+
+    @Test
+    void disablingCompactedObjectsWithoutExternalSinkDoesNotRetireTask() {
+        CompactTaskManager manager = initializeWithoutCompactedObjects();
+        CompactStreamTask task = sourceTask("default/orders-partition-0", 17L, Map.of());
+        var resolved = new ResolvedMaterialization(
+                new TableCatalog("internal-compaction", TableCatalogType.NONE, Map.of(), Map.of()),
+                new TableIdentifier("default", "orders"), TableMaterializationPolicy.empty());
+        assertThatThrownBy(() -> service.materialize(new MaterializationTask(
+                metadata("default", "orders", Map.of()), resolved, task.getTopic(), 17L, 0L, 0L, task)))
+                .isInstanceOf(MaterializationException.class).hasMessageContaining("No materializer available");
+        verify(manager, never()).deleteCompactTask(any());
+    }
+
+    private CompactTaskManager initializeWithoutCompactedObjects() {
+        CompactTaskManager manager = mock(CompactTaskManager.class);
+        when(manager.updateCompactTask(any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(manager.deleteCompactTask(any())).thenReturn(CompletableFuture.completedFuture(null));
+        runtime = new MaterializationRuntime(runtime.schemaService(), runtime.schemaEvolutionManager(),
+                runtime.materializationExecutor(), runtime.logger(), runtime.metrics(),
+                runtime.failureMessageHandler(), manager);
+        config = new MaterializationServiceConfig(config.workerPoolSize(), config.walReadRateLimitWindow(),
+                config.walReadRateLimitBytes(), Map.of("compactedObjectEnabled", "false"));
+        service.initialize(runtime, config);
+        service.setEntryReaderProvider(emptyReader());
+        return manager;
     }
 
     @Test
@@ -147,7 +268,7 @@ class LakehouseMaterializationServiceTest {
     void materializeNoneCatalogSkipsFactoryLookup() {
         service.initialize(runtime, config);
         ResolvedMaterialization resolved = new ResolvedMaterialization(
-                new TableCatalog("managed-none", TableCatalogType.NONE, Map.of(), Map.of()),
+                new TableCatalog("internal-compaction", TableCatalogType.NONE, Map.of(), Map.of()),
                 new TableIdentifier("ns", "tbl"),
                 TableMaterializationPolicy.empty());
 
@@ -160,22 +281,21 @@ class LakehouseMaterializationServiceTest {
     }
 
     @Test
-    void managedOnlyMaterializationUsesLogicalTopicFromMetadata() throws Exception {
+    void compactedObjectMaterializationUsesSourceTopicFromMetadata() throws Exception {
         service.initialize(runtime, config);
         String sourceTopic = "default/orders-topic-id-partition-0";
         Map<String, String> effectiveProperties = Map.of(
-                "sbtEnabled", "true",
                 KafkaSourceMetadata.TOPIC_NAME_PROPERTY, "orders");
         CompactStreamTask sourceTask = sourceTask(
-                sourceTopic, 17L, Map.of("sbtEnabled", "true"));
+                sourceTopic, 17L, Map.of());
         service.setEntryReaderProvider(emptyReader());
         AbstractLakehouseWriter managedWriter = mock(AbstractLakehouseWriter.class);
         LakehouseFactory managedFactory = mock(LakehouseFactory.class);
-        when(managedFactory.getManagedWriter(sourceTopic, effectiveProperties))
+        when(managedFactory.getCompactedObjectWriter(sourceTopic, effectiveProperties))
                 .thenReturn(java.util.Optional.of(managedWriter));
         service.setLakehouseFactory(managedFactory);
         ResolvedMaterialization resolved = new ResolvedMaterialization(
-                new TableCatalog("managed-none", TableCatalogType.NONE, Map.of(), Map.of()),
+                new TableCatalog("internal-compaction", TableCatalogType.NONE, Map.of(), Map.of()),
                 new TableIdentifier("ns", "tbl"),
                 TableMaterializationPolicy.empty());
         StreamMetadata metadata = metadata(
@@ -185,15 +305,15 @@ class LakehouseMaterializationServiceTest {
         service.materialize(new MaterializationTask(
                 metadata, resolved, sourceTopic, 17L, 0L, 0L, sourceTask));
 
-        verify(managedFactory).getManagedWriter(sourceTopic, effectiveProperties);
+        verify(managedFactory).getCompactedObjectWriter(sourceTopic, effectiveProperties);
         verify(managedWriter).close();
     }
 
     @Test
-    void managedCatalogMaterializerDoesNotAlsoBuildStandaloneSbtWriter() {
+    void externalCatalogMaterializerAlsoBuildsCompactedObjectWriter() {
         service.initialize(runtime, config);
         String sourceTopic = "default/orders-topic-id-abc-partition-0";
-        CompactStreamTask sourceTask = sourceTask(sourceTopic, 17L, Map.of("sbtEnabled", "true"));
+        CompactStreamTask sourceTask = sourceTask(sourceTopic, 17L, Map.of());
         service.setEntryReaderProvider(emptyReader());
         LakehouseFactory managedFactory = mock(LakehouseFactory.class);
         service.setLakehouseFactory(managedFactory);
@@ -222,10 +342,10 @@ class LakehouseMaterializationServiceTest {
             }
         });
         TableIdentifier identifier = new TableIdentifier("default", "orders-topic-id-abc");
-        TableMaterializationPolicy policy = policyWithMode(
-                "managed-iceberg", identifier, TableMode.MANAGED);
+        TableMaterializationPolicy policy = policyWithIdentifier(
+                "external-iceberg", identifier);
         ResolvedMaterialization resolved = new ResolvedMaterialization(
-                new TableCatalog("managed-iceberg", TableCatalogType.ICEBERG, Map.of(), Map.of()),
+                new TableCatalog("external-iceberg", TableCatalogType.ICEBERG, Map.of(), Map.of()),
                 identifier,
                 policy);
 
@@ -234,12 +354,11 @@ class LakehouseMaterializationServiceTest {
                 resolved, sourceTopic, 17L, 0L, 0L, sourceTask));
 
         verify(catalogMaterializer).commit();
-        verify(managedFactory, never()).getManagedWriter(any(), any());
+        verify(managedFactory).getCompactedObjectWriter(any(), any());
         assertThat(sourceTask.getProperties())
                 .containsEntry(StreamTableNaming.RESOLVED_TABLE_NAMESPACE_PROPERTY, "default")
                 .containsEntry(StreamTableNaming.RESOLVED_TABLE_NAME_PROPERTY, "orders-topic-id-abc")
-                .containsEntry(LakehouseConfiguration.STREAM_TABLE_MODE, TableMode.MANAGED.name())
-                .containsEntry(LakehouseConfiguration.CATALOG_NAME, "managed-iceberg")
+                .containsEntry(LakehouseConfiguration.CATALOG_NAME, "external-iceberg")
                 .containsEntry("lakehouseType", LakehouseConfiguration.LakehouseType.ICEBERG.name());
     }
 
@@ -292,7 +411,7 @@ class LakehouseMaterializationServiceTest {
             return reader(new ArrayDeque<>());
         });
         LakehouseFactory managedFactory = mock(LakehouseFactory.class);
-        when(managedFactory.getManagedWriter(eq(canonicalTopic), any()))
+        when(managedFactory.getCompactedObjectWriter(eq(canonicalTopic), any()))
                 .thenReturn(java.util.Optional.empty());
         service.setLakehouseFactory(managedFactory);
         TableMaterializer<GenericEntry> materializer = mock(TableMaterializer.class);
@@ -341,14 +460,13 @@ class LakehouseMaterializationServiceTest {
                 KafkaSourceMetadata.LOGICAL_NAME_PROPERTY, "orders",
                 KafkaSourceMetadata.TOPIC_NAME_PROPERTY, "orders",
                 MaterializationRuntime.SOURCE_TOPIC_PROPERTY, canonicalTopic));
-        verify(managedFactory).getManagedWriter(canonicalTopic, Map.of(
+        verify(managedFactory).getCompactedObjectWriter(canonicalTopic, Map.of(
                 "sdtCatalogName", "orders-catalog",
                 KafkaSourceMetadata.LOGICAL_NAME_PROPERTY, "orders",
                 KafkaSourceMetadata.TOPIC_NAME_PROPERTY, "orders"));
         assertThat(sourceTask.getProperties())
                 .containsEntry(StreamTableNaming.RESOLVED_TABLE_NAMESPACE_PROPERTY, "ns")
                 .containsEntry(StreamTableNaming.RESOLVED_TABLE_NAME_PROPERTY, "tbl")
-                .containsEntry(LakehouseConfiguration.STREAM_TABLE_MODE, TableMode.EXTERNAL.name())
                 .containsEntry(LakehouseConfiguration.CATALOG_NAME, "delta-cat")
                 .containsEntry("lakehouseType", LakehouseConfiguration.LakehouseType.DELTA.name());
         verify(materializer).commit();
@@ -627,11 +745,11 @@ class LakehouseMaterializationServiceTest {
         return new ResolvedMaterialization(
                 new TableCatalog("delta-cat", TableCatalogType.DELTA, Map.of(), Map.of()),
                 identifier,
-                policyWithMode("delta-cat", identifier, TableMode.EXTERNAL));
+                policyWithIdentifier("delta-cat", identifier));
     }
 
-    private static TableMaterializationPolicy policyWithMode(
-            String catalog, TableIdentifier identifier, TableMode mode) {
+    private static TableMaterializationPolicy policyWithIdentifier(
+            String catalog, TableIdentifier identifier) {
         return new TableMaterializationPolicy(
                 Optional.of(catalog),
                 Optional.empty(),
@@ -642,7 +760,6 @@ class LakehouseMaterializationServiceTest {
                 Optional.empty(),
                 Optional.empty(),
                 Optional.of(new TableConf(
-                        Optional.of(mode),
                         Optional.empty(),
                         Optional.empty(),
                         Optional.empty(),

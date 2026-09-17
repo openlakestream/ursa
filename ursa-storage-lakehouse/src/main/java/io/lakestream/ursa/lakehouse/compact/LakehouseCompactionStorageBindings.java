@@ -4,7 +4,6 @@
  */
 package io.lakestream.ursa.lakehouse.compact;
 
-import io.lakestream.api.materialization.ResolvedMaterialization;
 import io.lakestream.ursa.compaction.CompactTaskManager;
 import io.lakestream.ursa.compaction.metrics.CompactionMetrics;
 import io.lakestream.ursa.lakehouse.cleaner.AsyncCompactedDataCleaner;
@@ -24,7 +23,6 @@ import io.lakestream.ursa.storage.impl.compaction.TopicProvider;
 import io.oxia.client.api.AsyncOxiaClient;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.BooleanSupplier;
@@ -99,7 +97,7 @@ public final class LakehouseCompactionStorageBindings implements CompactionStora
 
     private CompactedDataCleanupHandler createCompactedDataCleanupHandlerImpl() {
         return new CompactedDataCleanupHandler(
-                deps.config, deps.storageApi, deps.fileStorage, deps.materializationLookup);
+                deps.config, deps.storageApi, deps.fileStorage);
     }
 
     @Override
@@ -183,7 +181,6 @@ public final class LakehouseCompactionStorageBindings implements CompactionStora
         private final ExecutorService compactedTaskExecutor;
         private final ExecutorService commitParquetFileExecutor;
         private final Function<String, Map<String, String>> streamPropertiesLookup;
-        private final Function<String, Optional<ResolvedMaterialization>> materializationLookup;
 
         @SuppressWarnings("ParameterNumber")
         public Dependencies(StorageConfig config,
@@ -200,8 +197,7 @@ public final class LakehouseCompactionStorageBindings implements CompactionStora
                             ScheduledExecutorService publishTaskExecutor,
                             ExecutorService compactedTaskExecutor,
                             ExecutorService commitParquetFileExecutor,
-                            Function<String, Map<String, String>> streamPropertiesLookup,
-                            Function<String, Optional<ResolvedMaterialization>> materializationLookup) {
+                            Function<String, Map<String, String>> streamPropertiesLookup) {
             this.config = Objects.requireNonNull(config, "config");
             this.storageApi = Objects.requireNonNull(storageApi, "storageApi");
             this.fileStorage = Objects.requireNonNull(fileStorage, "fileStorage");
@@ -219,8 +215,6 @@ public final class LakehouseCompactionStorageBindings implements CompactionStora
                     Objects.requireNonNull(commitParquetFileExecutor, "commitParquetFileExecutor");
             // Optional: a deployment without a catalog compacts with empty stream properties.
             this.streamPropertiesLookup = streamPropertiesLookup;
-            // Optional: legacy deployments without catalog policies keep cleanup config-driven.
-            this.materializationLookup = materializationLookup;
         }
     }
 }

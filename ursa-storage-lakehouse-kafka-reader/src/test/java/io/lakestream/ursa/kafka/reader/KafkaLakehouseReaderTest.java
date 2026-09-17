@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.lakestream.api.EntryHeader;
 import io.lakestream.api.EntryIndex;
 import io.lakestream.api.Position;
-import io.lakestream.ursa.compaction.common.ManagedTableFileIndex;
+import io.lakestream.ursa.compaction.common.CompactedObjectFileIndex;
 import io.lakestream.ursa.lakehouse.LakehouseConfiguration;
 import io.lakestream.ursa.lakehouse.v2.AbstractLakehouseWriter;
 import io.lakestream.ursa.lakehouse.v2.IWriteResult;
@@ -77,12 +77,12 @@ class KafkaLakehouseReaderTest {
                 AbstractLakehouseWriter.LAST_ENTRY_ID_IN_FILE);
         assertThat(inclusiveEndOffset).isEqualTo(11);
 
-        ManagedTableFileIndex fileIndex = new ManagedTableFileIndex();
+        CompactedObjectFileIndex fileIndex = new CompactedObjectFileIndex();
         fileIndex.append(inclusiveEndOffset, writeResult.getDataFile());
         EntryIndex entryIndex = new EntryIndex(
                 header, new Position("ignored"), 1, EntryIndex.IndexType.COMPACT,
                 Optional.empty(), Optional.of(Map.of(
-                        ManagedTableFileIndex.NAME, fileIndex.serializeToString())));
+                        CompactedObjectFileIndex.NAME, fileIndex.serializeToString())));
 
         KafkaLakehouseReaderFactory factory = new KafkaLakehouseReaderFactory();
         Properties properties = new Properties();
@@ -133,7 +133,7 @@ class KafkaLakehouseReaderTest {
     }
 
     @Test
-    void rejectsEntryIndexesWithoutTheKafkaV2ManagedTableFileIndex() throws Exception {
+    void rejectsEntryIndexesWithoutTheKafkaV2CompactedObjectFileIndex() throws Exception {
         KafkaLakehouseReaderFactory factory = new KafkaLakehouseReaderFactory();
         Properties properties = new Properties();
         properties.setProperty("storagePath", temporaryDirectory.toString());
@@ -160,12 +160,12 @@ class KafkaLakehouseReaderTest {
         Files.createDirectories(topicDirectory);
         EntryHeader header = new EntryHeader(10, 1, 1234, 3, 3);
         String dataFile = writeWithLegacyLakehouseWriter(topicDirectory, header, new byte[] {1, 2, 3}, false);
-        ManagedTableFileIndex fileIndex = new ManagedTableFileIndex();
+        CompactedObjectFileIndex fileIndex = new CompactedObjectFileIndex();
         fileIndex.append(10, dataFile);
         EntryIndex entryIndex = new EntryIndex(
                 header, new Position("ignored"), 1, EntryIndex.IndexType.COMPACT,
                 Optional.empty(), Optional.of(Map.of(
-                        ManagedTableFileIndex.NAME, fileIndex.serializeToString())));
+                        CompactedObjectFileIndex.NAME, fileIndex.serializeToString())));
 
         KafkaLakehouseReaderFactory factory = new KafkaLakehouseReaderFactory();
         Properties properties = new Properties();
@@ -193,13 +193,13 @@ class KafkaLakehouseReaderTest {
                 "default/orders-partition-0");
         factory.close();
 
-        ManagedTableFileIndex fileIndex = new ManagedTableFileIndex();
+        CompactedObjectFileIndex fileIndex = new CompactedObjectFileIndex();
         fileIndex.append(0, "unused.parquet");
         EntryHeader header = new EntryHeader(0, 1, 0, 1, 1);
         EntryIndex entryIndex = new EntryIndex(
                 header, new Position("ignored"), 1, EntryIndex.IndexType.COMPACT,
                 Optional.empty(), Optional.of(Map.of(
-                        ManagedTableFileIndex.NAME, fileIndex.serializeToString())));
+                        CompactedObjectFileIndex.NAME, fileIndex.serializeToString())));
 
         assertThatThrownBy(() -> reader.readMessagesWithEntryIndexAsync(
                 entryIndex, 0, 0, 1, 1).join())

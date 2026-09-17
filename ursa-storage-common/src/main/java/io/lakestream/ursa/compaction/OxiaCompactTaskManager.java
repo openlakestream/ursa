@@ -86,13 +86,11 @@ public class OxiaCompactTaskManager implements CompactTaskManager {
                 if (getResult != null) {
                     try {
                         var task = CompactStreamTaskSerde.INSTANCE.deserialize(getResult.value());
-                        if (task != null) {
-                            var topic = task.getTopic();
-                            var list = results.computeIfAbsent(topic, k -> new ConcurrentSkipListSet<>());
-                            list.add(task);
-                            if (list.size() == n) {
-                                list.pollLast();
-                            }
+                        var topic = task.getTopic();
+                        var list = results.computeIfAbsent(topic, k -> new ConcurrentSkipListSet<>());
+                        list.add(task);
+                        if (list.size() == n) {
+                            list.pollLast();
                         }
                     } catch (Throwable e) {
                         log.error("Failed to deserialize compact stream task: {}", getResult.key(), e);
@@ -373,7 +371,7 @@ public class OxiaCompactTaskManager implements CompactTaskManager {
                     }
                     try {
                         return CompactStreamTaskSerde.INSTANCE.deserialize(getResult.value());
-                    } catch (IOException | ClassNotFoundException e) {
+                    } catch (IOException e) {
                         throw new CompletionException(e);
                     }
                 });

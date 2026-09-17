@@ -40,7 +40,6 @@ class DirectExternalTableTest {
         Properties props = new Properties();
         props.put("directExternalStoragePath", tempDir.toUri().toString());
         props.put("partitionKey", "none");
-        props.put("streamTableMode", "EXTERNAL");
         config = new LakehouseConfiguration(props);
     }
 
@@ -154,7 +153,6 @@ class DirectExternalTableTest {
         Properties props = new Properties();
         props.put("directExternalStoragePath", "s3a://customer-bucket/customer-prefix");
         props.put("partitionKey", "none");
-        props.put("streamTableMode", "EXTERNAL");
         props.put("cloudStorageEndpoint", "http://localhost:8080");
         props.put("compactionBucketRegion", "us-west-1");
         props.put("hadoop.fs.s3a.endpoint", "http://minio.internal:9000");
@@ -179,7 +177,6 @@ class DirectExternalTableTest {
     void testConstructorRequiresDirectExternalStoragePath() {
         Properties props = new Properties();
         props.put("partitionKey", "none");
-        props.put("streamTableMode", "EXTERNAL");
 
         LakehouseConfiguration configuration = new LakehouseConfiguration(props);
 
@@ -194,7 +191,6 @@ class DirectExternalTableTest {
         Properties props = new Properties();
         props.put("directExternalStoragePath", "s3://customer-bucket/customer-prefix/");
         props.put("partitionKey", "none");
-        props.put("streamTableMode", "EXTERNAL");
 
         DirectExternalTable table = new DirectExternalTable(new LakehouseConfiguration(props),
             "ns/topic");
@@ -208,7 +204,6 @@ class DirectExternalTableTest {
         props.put("directExternalStoragePath", "customer-bucket/customer-prefix");
         props.put("compactionBackendStorageType", "S3");
         props.put("partitionKey", "none");
-        props.put("streamTableMode", "EXTERNAL");
 
         DirectExternalTable table = new DirectExternalTable(new LakehouseConfiguration(props),
             "ns/topic");

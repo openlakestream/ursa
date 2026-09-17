@@ -96,7 +96,7 @@ public class EntryIndexCacheTest {
     }
 
     @Test
-    void testTTL() throws InterruptedException {
+    void testTTL() {
         var cache = new EntryIndexCache(readEntryIndex, 10, 3);
         EntryIndex index = mock(EntryIndex.class);
         EntryHeader header = mock(EntryHeader.class);
@@ -114,14 +114,12 @@ public class EntryIndexCacheTest {
         assertEquals(index, result3);
         assertEquals(index, result4);
 
-        Thread.sleep(3000);
-
-        EntryIndex result5 = cache.get(1L, header.offset()).join();
-        EntryIndex result6 = cache.get(2L, header.offset()).join();
-        assertEquals(EntryIndex.NOT_FOUND, result5);
-        assertEquals(EntryIndex.NOT_FOUND, result6);
-
-        assertEquals(0, cache.size());
+        // Expiration makes entries unreadable before asynchronous cache maintenance updates the size.
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            assertEquals(EntryIndex.NOT_FOUND, cache.get(1L, header.offset()).join());
+            assertEquals(EntryIndex.NOT_FOUND, cache.get(2L, header.offset()).join());
+            assertEquals(0, cache.size());
+        });
     }
 
 

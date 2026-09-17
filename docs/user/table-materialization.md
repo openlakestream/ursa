@@ -4,6 +4,14 @@ Ursa Storage can materialize a stream into an external table for analytics
 consumption. The framework supports Apache Iceberg, Delta Lake, Delta on
 Unity Catalog, and ClickHouse out of the box.
 
+Internal compacted objects (COs) are controlled independently of external table
+materialization by `compactedObjectEnabled` (default: `true`) in the compaction
+service configuration. Keep it enabled for UFK, which needs WAL-to-CO compaction
+for stream replay. For external Kafka/Pulsar table materialization that does not
+need internal COs, set `compactedObjectEnabled=false`; external table writes and
+commits continue normally. This setting does not enable an external sink: one must
+still be configured for external-only materialization.
+
 ## Concept Quick Reference
 
 - **TableCatalog** — a registered, named table store (e.g.,
@@ -50,7 +58,7 @@ streamCatalog.registerTableCatalog(ch).join();
 //    Optional, so set only what the namespace actually owns.
 TableMaterializationPolicy namespacePolicy = new TableMaterializationPolicy(
         Optional.of("clickhouse-prod"),                        // catalogRef
-        Optional.empty(),                                      // tableNaming: use mode default
+        Optional.empty(),                                      // tableNaming: use source logical name
         Optional.empty(),                                      // tableIdentifier
         Optional.empty(),                                      // enabled
         Optional.empty(),                                      // framework
@@ -73,7 +81,6 @@ TableMaterializationPolicy override = new TableMaterializationPolicy(
         Optional.of(List.of("tenant_id", "event_id")),         // primaryKey
         Optional.empty(),                                      // baseSchemaVersion
         Optional.of(new TableConf(
-                Optional.empty(),
                 Optional.of(List.of(new PartitionSpec(
                         "event_date",
                         PartitionTransform.DAY,
@@ -112,21 +119,16 @@ streamCatalog.setStreamMaterialization(
 ## Table Naming
 
 A stream-level explicit `tableIdentifier` has highest priority. Otherwise an explicitly configured
-namespace `TableNaming` template is used. With neither configured, the default depends on table
-mode:
+namespace `TableNaming` template is used. With neither configured, external destinations use the
+source-owned `lakestream.source.logical.name`, then the legacy `lakestream.kafka.topic.name`, and
+finally `stream.name`.
 
-- `MANAGED` uses the storage `stream.name`, keeping an SBT tied to one stream incarnation.
-- `EXTERNAL` and `CUSTOM` use the source-owned `lakestream.source.logical.name`, then the legacy
-  `lakestream.kafka.topic.name`, and finally `stream.name`.
+Source integrations own these metadata properties. For example, Kafka records the topic automatically,
+so a UUID-qualified storage stream can materialize to a stable topic-named SDT.
 
-Source integrations own these metadata properties. Applications do not configure them. For example,
-the Kafka integration records the Kafka topic automatically, so a UUID-qualified storage stream can
-materialize to a stable topic-named SDT without a `tableNameTemplate`.
-
-A resolved SDT table name never replaces storage identity. SBT Compacted Objects, partition metadata,
-and Oxia indexes continue to use the incarnation-qualified stream/log identity. With both outputs
-enabled, the SDT writer (including its DLT and committer) and the SBT writer therefore remain
-independent.
+The resolved table name never replaces storage identity. Internal COs, partition metadata, and
+Offset indexes continue to use the incarnation-qualified stream/log identity. Internal storage
+compaction runs independently of whether an external destination is enabled.
 
 `TableNaming.tableNameTemplate` is interpolated once per stream when the policy is resolved. Four
 variables are supported, all case-sensitive:
@@ -177,6 +179,19 @@ Operator-side keys read on `CompactionScheduler` startup:
 
 See [ursa-storage-compact/CLAUDE.md](../../ursa-storage-compact/CLAUDE.md#configuration-keys-operator-surface)
 for the full table.
+
+## Internal compaction
+
+Internal Parquet CO generation runs independently of SDT and does not require a table catalog.
+The destination backend is selected by its catalog type and materializer factory. Internal CO
+cleanup deletes stream storage files and indexes without changing SDT tables.
+
+An external default policy is generated at startup only when both `materializationEnabled`
+and SDT are enabled (`clusterSdtEnabled`, with `sdt.enabled` taking precedence).
+Disabling SDT prevents this automatic policy creation while preserving internal CO compaction.
+
+CO write results always record the per-file offset index, including when schema changes
+produce multiple files in one compaction task. No configuration switch is required.
 
 ## Supported Sinks
 

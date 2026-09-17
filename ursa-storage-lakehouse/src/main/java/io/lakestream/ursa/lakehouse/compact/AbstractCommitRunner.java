@@ -8,10 +8,10 @@ import static io.lakestream.ursa.storage.proto.IndexType.COMPACT;
 
 import io.lakestream.api.Position;
 import io.lakestream.ursa.compaction.CompactTaskManager;
-import io.lakestream.ursa.compaction.common.ManagedTableFileIndex;
+import io.lakestream.ursa.compaction.common.CompactedObjectFileIndex;
 import io.lakestream.ursa.compaction.metrics.CompactionMetrics;
 import io.lakestream.ursa.compaction.task.CompactStreamTask;
-import io.lakestream.ursa.compaction.task.ManagedWriteResult;
+import io.lakestream.ursa.compaction.task.CompactedObjectWriteResult;
 import io.lakestream.ursa.compaction.task.OffsetRange;
 import io.lakestream.ursa.exception.ExceptionCode;
 import io.lakestream.ursa.exception.ExceptionWithCode;
@@ -110,15 +110,8 @@ public class AbstractCommitRunner {
                 results != null && results.stream()
                         .anyMatch(r -> r.deleteFiles() != null && r.deleteFiles().length > 0);
 
-        if (hasDeleteFiles.test(icebergTask.getWriteResults())
-                || hasDeleteFiles.test(icebergTask.getDltWriteResults())) {
-            return true;
-        }
-
-        var singleResult = icebergTask.getWriteResult();
-        return singleResult != null
-                && singleResult.deleteFiles() != null
-                && singleResult.deleteFiles().length > 0;
+        return hasDeleteFiles.test(icebergTask.getWriteResults())
+                || hasDeleteFiles.test(icebergTask.getDltWriteResults());
     }
 
     // todo: improve this by include them in one commit transaction
@@ -280,14 +273,14 @@ public class AbstractCommitRunner {
 
             var value = new Value(realTotalMessage, totalSize, 1, COMPACT, position,
                 Optional.empty(), Optional.of(new HashMap<>()));
-            if (compactStreamTask.getManagedWriteResults() != null
-                && !compactStreamTask.getManagedWriteResults().isEmpty()) {
+            if (compactStreamTask.getCompactedObjectWriteResults() != null
+                && !compactStreamTask.getCompactedObjectWriteResults().isEmpty()) {
                 var extraMetadata = value.extraData().get();
-                ManagedTableFileIndex fileIndex = new ManagedTableFileIndex();
-                for (ManagedWriteResult wr : compactStreamTask.getManagedWriteResults()) {
+                CompactedObjectFileIndex fileIndex = new CompactedObjectFileIndex();
+                for (CompactedObjectWriteResult wr : compactStreamTask.getCompactedObjectWriteResults()) {
                     fileIndex.append(wr.getLastEntryId(), wr.getFilePath());
                 }
-                extraMetadata.put(ManagedTableFileIndex.NAME, fileIndex.serializeToString());
+                extraMetadata.put(CompactedObjectFileIndex.NAME, fileIndex.serializeToString());
             }
             storageApi.withStreamWriteLease(streamId, ignoredLease ->
                 storageApi.compactEntryIndex(

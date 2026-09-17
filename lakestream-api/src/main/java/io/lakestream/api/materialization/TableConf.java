@@ -14,7 +14,6 @@ import java.util.Optional;
  * <p>List-valued fields are defensively copied via {@link List#copyOf(java.util.Collection)}
  * (after unwrapping the Optional) so callers cannot mutate the record after construction.
  *
- * @param mode                 lifecycle ownership of the table
  * @param partitionBy          partition specification (immutable copy stored)
  * @param sortBy               sort columns (immutable copy stored)
  * @param retention            retention configuration
@@ -22,7 +21,6 @@ import java.util.Optional;
  * @param compression          codec for data files
  */
 public record TableConf(
-        Optional<TableMode> mode,
         Optional<List<PartitionSpec>> partitionBy,
         Optional<List<SortColumn>> sortBy,
         Optional<RetentionConfig> retention,
@@ -34,7 +32,6 @@ public record TableConf(
      * defensively copies any contained lists.
      */
     public TableConf {
-        Objects.requireNonNull(mode, "mode cannot be null; use Optional.empty()");
         Objects.requireNonNull(partitionBy, "partitionBy cannot be null; use Optional.empty()");
         Objects.requireNonNull(sortBy, "sortBy cannot be null; use Optional.empty()");
         Objects.requireNonNull(retention, "retention cannot be null; use Optional.empty()");

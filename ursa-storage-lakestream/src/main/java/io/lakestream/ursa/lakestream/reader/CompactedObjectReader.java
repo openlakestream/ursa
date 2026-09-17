@@ -6,7 +6,7 @@ package io.lakestream.ursa.lakestream.reader;
 
 import io.lakestream.api.EntryIndex;
 import io.lakestream.api.LogEntry;
-import io.lakestream.ursa.compaction.common.ManagedTableFileIndex;
+import io.lakestream.ursa.compaction.common.CompactedObjectFileIndex;
 import io.lakestream.ursa.storage.Entry;
 import java.util.List;
 import java.util.Optional;
@@ -30,7 +30,7 @@ public interface CompactedObjectReader {
      */
     record ReadResult(boolean isV2Result, List<LogEntry> entries) { }
 
-    default Optional<ManagedTableFileIndex> getManagedTableFileIndex(EntryIndex entryIndex) {
+    default Optional<CompactedObjectFileIndex> getCompactedObjectFileIndex(EntryIndex entryIndex) {
         return Optional.empty();
     }
 

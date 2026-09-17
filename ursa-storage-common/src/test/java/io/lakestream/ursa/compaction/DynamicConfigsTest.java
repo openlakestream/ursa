@@ -25,7 +25,6 @@ public class DynamicConfigsTest {
         var configs = DynamicConfigs.of(new Properties());
         assertTrue(configs.properties().isEmpty());
         assertFalse(configs.sdtEnabled());
-        assertFalse(configs.sbtEnabled());
     }
 
     @Test
@@ -141,23 +140,6 @@ public class DynamicConfigsTest {
     }
 
     @Test
-    void testSbtEnabledPriority() {
-        var properties = new Properties();
-        properties.setProperty("sbt.enabled", "false");
-        properties.setProperty("cluster.sbt.enabled", "true");
-        properties.setProperty("clusterSbtEnabled", "true");
-
-        var configs = DynamicConfigs.of(properties);
-        assertTrue(configs.sbtEnabled());
-
-        configs.overrideWith(Map.of("cluster.sbt.enabled", "false"));
-        assertFalse(configs.sbtEnabled());
-
-        configs.overrideWith(Map.of("sbt.enabled", "true"));
-        assertTrue(configs.sbtEnabled());
-    }
-
-    @Test
     void testSdtCatalogNamePriority() {
         var properties = new Properties();
         properties.setProperty("sdt.catalog.name", "namespace-catalog");
@@ -212,28 +194,8 @@ public class DynamicConfigsTest {
     }
 
     @Test
-    void testSbtAndSdtFlags() {
-        var properties = new Properties();
-        properties.setProperty("clusterSbtEnabled", "false");
-        properties.setProperty("clusterSdtEnabled", "true");
-
-        var configs = new DynamicConfigs("test-cluster", properties);
-        assertFalse(configs.sbtEnabled());
-        assertTrue(configs.sdtEnabled());
-
-        configs.overrideWith(Map.of(
-            "test-cluster.sbt.enabled", "true",
-            "test-cluster.sdt.enabled", "false"
-        ));
-
-        assertTrue(configs.sbtEnabled());
-        assertFalse(configs.sdtEnabled());
-    }
-
-    @Test
     void testToTaskPropertiesOnlyExposesAllowedConfigs() {
         var properties = new Properties();
-        properties.setProperty("clusterSbtEnabled", "false");
         properties.setProperty("clusterSdtEnabled", "true");
         properties.setProperty("clusterSdtCatalogName", "test-catalog");
         properties.setProperty("clusterTailCompactDataVisibilityIntervalInSeconds", "60");
@@ -241,7 +203,6 @@ public class DynamicConfigsTest {
         var configs = DynamicConfigs.of(properties);
         var taskProperties = configs.toTaskProperties();
 
-        assertEquals("false", taskProperties.get("sbt.enabled"));
         assertEquals("true", taskProperties.get("sdt.enabled"));
         assertEquals("test-catalog", taskProperties.get("sdt.catalog.name"));
         assertNull(taskProperties.get("tail.compact.data.visibility.interval.in.seconds"));
@@ -250,16 +211,13 @@ public class DynamicConfigsTest {
     @Test
     void testBuildDynamicConfigsFromTaskProperties() {
         var baseProperties = new Properties();
-        baseProperties.setProperty("clusterSbtEnabled", "true");
         baseProperties.setProperty("clusterSdtEnabled", "false");
 
         var configs = DynamicConfigs.fromTaskProperties(baseProperties, Map.of(
-            "sbt.enabled", "false",
             "sdt.enabled", "true",
             "sdt.catalog.name", "task-catalog"
         ));
 
-        assertFalse(configs.sbtEnabled());
         assertTrue(configs.sdtEnabled());
         assertEquals(Optional.of("task-catalog"), configs.sdtCatalogName());
     }
@@ -752,7 +710,6 @@ public class DynamicConfigsTest {
         // 2. Topic properties carry identifierFields and partitionKey
         // 3. Resolved task properties must include camelCase aliases for IcebergSinkConfig
         var baseProperties = new Properties();
-        baseProperties.setProperty("clusterSbtEnabled", "true");
         baseProperties.setProperty("clusterSdtEnabled", "true");
         baseProperties.setProperty("clusterIdentifierFields", "should-be-ignored");
         baseProperties.setProperty("clusterPartitionKey", "should-be-ignored");
@@ -783,7 +740,6 @@ public class DynamicConfigsTest {
         assertNotEquals("should-be-ignored", taskProperties.get("partitionKey"));
 
         // Verify other dynamic configs still resolve from config file
-        assertEquals("true", taskProperties.get("sbt.enabled"));
         assertEquals("true", taskProperties.get("sdt.enabled"));
     }
 

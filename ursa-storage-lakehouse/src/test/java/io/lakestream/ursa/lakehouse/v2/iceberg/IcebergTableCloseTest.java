@@ -38,7 +38,6 @@ import io.lakestream.ursa.lakehouse.v2.IWriteResult;
 import io.lakestream.ursa.materialization.serde.EntrySerdeFactory;
 import io.lakestream.ursa.materialization.serde.GenericEntry;
 import io.lakestream.ursa.materialization.serde.MaterializationRecord;
-import io.lakestream.ursa.metrics.InstrumentProvider;
 import io.lakestream.ursa.storage.Entry;
 import io.netty.buffer.Unpooled;
 import java.io.Closeable;
@@ -240,29 +239,6 @@ class IcebergTableCloseTest {
         assertTrue(captor.getValue() instanceof RecordWrapper);
         assertEquals(Operation.DELETE, ((RecordWrapper) captor.getValue()).op());
         assertEquals(7, captor.getValue().getField("id"));
-    }
-
-    // ======== IcebergManagedTableWriter close() tests ========
-
-    @Test
-    void testManagedWriter_CloseReleasesIcebergTable() throws Exception {
-        var writer = new IcebergManagedTableWriter(topic, entrySerdeFactory, config, InstrumentProvider.NOOP);
-        injectField(writer, IcebergManagedTableWriter.class, "icebergTable", icebergTable);
-
-        writer.close();
-
-        verify(icebergTable, times(1)).close();
-    }
-
-    @Test
-    void testManagedWriter_CloseNullsIcebergTableToPreventDoubleClose() throws Exception {
-        var writer = new IcebergManagedTableWriter(topic, entrySerdeFactory, config, InstrumentProvider.NOOP);
-        injectField(writer, IcebergManagedTableWriter.class, "icebergTable", icebergTable);
-
-        writer.close();
-        writer.close(); // second close should be a no-op
-
-        verify(icebergTable, times(1)).close();
     }
 
     @Test

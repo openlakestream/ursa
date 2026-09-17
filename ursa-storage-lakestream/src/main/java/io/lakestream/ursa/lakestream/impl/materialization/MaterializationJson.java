@@ -27,7 +27,6 @@ import io.lakestream.api.materialization.TableCatalogType;
 import io.lakestream.api.materialization.TableConf;
 import io.lakestream.api.materialization.TableIdentifier;
 import io.lakestream.api.materialization.TableMaterializationPolicy;
-import io.lakestream.api.materialization.TableMode;
 import io.lakestream.api.materialization.TableNaming;
 import io.lakestream.api.materialization.WriteMode;
 import java.util.ArrayList;
@@ -237,7 +236,6 @@ public final class MaterializationJson {
 
     private static ObjectNode tableConfToJson(TableConf table) {
         ObjectNode node = NF.objectNode();
-        table.mode().ifPresent(v -> node.put("mode", v.name()));
         table.partitionBy().ifPresent(v -> {
             ArrayNode arr = NF.arrayNode();
             for (PartitionSpec spec : v) {
@@ -259,7 +257,6 @@ public final class MaterializationJson {
     }
 
     private static TableConf tableConfFromJson(JsonNode node) {
-        Optional<TableMode> mode = optionalText(node, "mode").map(TableMode::valueOf);
         Optional<List<PartitionSpec>> partitionBy = optionalArray(node, "partitionBy").map(arr -> {
             List<PartitionSpec> specs = new ArrayList<>();
             arr.forEach(spec -> specs.add(partitionSpecFromJson(spec)));
@@ -275,7 +272,7 @@ public final class MaterializationJson {
         Optional<Long> targetFileSizeBytes = optionalLong(node, "targetFileSizeBytes");
         Optional<Compression> compression = optionalText(node, "compression")
                 .map(Compression::valueOf);
-        return new TableConf(mode, partitionBy, sortBy, retention, targetFileSizeBytes,
+        return new TableConf(partitionBy, sortBy, retention, targetFileSizeBytes,
                 compression);
     }
 

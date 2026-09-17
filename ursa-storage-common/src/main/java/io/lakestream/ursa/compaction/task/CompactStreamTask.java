@@ -65,7 +65,7 @@ public class CompactStreamTask implements Comparable<CompactStreamTask>, Seriali
     protected int numberOfRecordsInCompactedFile;
 
     private TaskQueueType taskQueueType = TaskQueueType.NORMAL;
-    private TreeSet<ManagedWriteResult> managedWriteResults = new TreeSet<ManagedWriteResult>();
+    private TreeSet<CompactedObjectWriteResult> compactedObjectWriteResults = new TreeSet<CompactedObjectWriteResult>();
 
     public CompactStreamTask(long streamId, long startOffset, long endOffset, long totalSize, long cumulativeSize,
                              String topic, String taskName, int status, Map<String, String> properties) {

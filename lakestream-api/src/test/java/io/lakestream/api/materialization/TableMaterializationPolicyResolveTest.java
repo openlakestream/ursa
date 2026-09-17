@@ -130,7 +130,6 @@ class TableMaterializationPolicyResolveTest {
                 Optional.empty(),
                 Optional.empty(),
                 Optional.of(new TableConf(
-                        Optional.of(TableMode.EXTERNAL),
                         Optional.empty(),
                         Optional.empty(),
                         Optional.empty(),
@@ -240,14 +239,12 @@ class TableMaterializationPolicyResolveTest {
         PartitionSpec streamPartition = new PartitionSpec(
                 "t", PartitionTransform.DAY, Optional.empty());
         TableConf nsTable = new TableConf(
-                Optional.empty(),
                 Optional.of(List.of(nsPartition)),
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty());
         TableConf streamTable = new TableConf(
-                Optional.empty(),
                 Optional.of(List.of(streamPartition)),
                 Optional.empty(),
                 Optional.empty(),
@@ -272,13 +269,11 @@ class TableMaterializationPolicyResolveTest {
         SortColumn streamSort = new SortColumn("b", SortDirection.DESC, true);
         TableConf nsTable = new TableConf(
                 Optional.empty(),
-                Optional.empty(),
                 Optional.of(List.of(nsSort)),
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty());
         TableConf streamTable = new TableConf(
-                Optional.empty(),
                 Optional.empty(),
                 Optional.of(List.of(streamSort)),
                 Optional.empty(),
@@ -335,7 +330,7 @@ class TableMaterializationPolicyResolveTest {
 
     @Test
     void externalTableDefaultsToKafkaTopicName() {
-        TableMaterializationPolicy ns = policyWithoutNaming(TableMode.EXTERNAL);
+        TableMaterializationPolicy ns = policyWithoutNaming();
         StreamIdentifier storageStream = StreamIdentifier.of(
                 "public/default", "orders-topic-id-65WMNfybQpCDVulYOxMCTw");
 
@@ -350,7 +345,7 @@ class TableMaterializationPolicyResolveTest {
 
     @Test
     void externalTablePrefersSourceLogicalNameAndFallsBackToStreamName() {
-        TableMaterializationPolicy ns = policyWithoutNaming(TableMode.EXTERNAL);
+        TableMaterializationPolicy ns = policyWithoutNaming();
         StreamIdentifier storageStream = StreamIdentifier.of("public/default", "physical-stream");
 
         Optional<ResolvedMaterialization> fromSource = TableMaterializationPolicy.resolve(
@@ -366,7 +361,7 @@ class TableMaterializationPolicyResolveTest {
 
     @Test
     void recreatedSourceIncarnationsShareDefaultExternalTable() {
-        TableMaterializationPolicy ns = policyWithoutNaming(TableMode.EXTERNAL);
+        TableMaterializationPolicy ns = policyWithoutNaming();
         Map<String, String> properties = Map.of(
                 SourceMetadataProperties.LOGICAL_NAME_PROPERTY, "orders");
 
@@ -381,20 +376,6 @@ class TableMaterializationPolicyResolveTest {
 
         assertThat(first.tableIdentifier()).isEqualTo(new TableIdentifier("default", "orders"));
         assertThat(second.tableIdentifier()).isEqualTo(first.tableIdentifier());
-    }
-
-    @Test
-    void managedTableDefaultsToStorageStreamName() {
-        TableMaterializationPolicy ns = policyWithoutNaming(TableMode.MANAGED);
-        StreamIdentifier storageStream = StreamIdentifier.of(
-                "public/default", "orders-topic-id-65WMNfybQpCDVulYOxMCTw");
-
-        Optional<ResolvedMaterialization> result = TableMaterializationPolicy.resolve(
-                Optional.of(ns), Optional.empty(), storageStream, lookup(ICEBERG_CATALOG),
-                Map.of(SourceMetadataProperties.LOGICAL_NAME_PROPERTY, "orders"));
-
-        assertThat(result.orElseThrow().tableIdentifier().name())
-                .isEqualTo("orders-topic-id-65WMNfybQpCDVulYOxMCTw");
     }
 
     @Test
@@ -454,7 +435,7 @@ class TableMaterializationPolicyResolveTest {
      * template "${stream.name}" with prefix "warehouse", framework with
      * writeMode=APPEND, and {@link EvolutionPolicy#forIceberg()}.
      */
-    private static TableMaterializationPolicy policyWithoutNaming(TableMode mode) {
+    private static TableMaterializationPolicy policyWithoutNaming() {
         return new TableMaterializationPolicy(
                 Optional.of("iceberg-glue"),
                 Optional.empty(),
@@ -465,7 +446,6 @@ class TableMaterializationPolicyResolveTest {
                 Optional.empty(),
                 Optional.empty(),
                 Optional.of(new TableConf(
-                        Optional.of(mode),
                         Optional.empty(),
                         Optional.empty(),
                         Optional.empty(),

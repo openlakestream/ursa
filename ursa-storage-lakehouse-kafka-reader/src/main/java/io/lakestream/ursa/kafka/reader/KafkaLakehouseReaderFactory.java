@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * <p>This factory deliberately supports the Kafka integration's V2
  * {@code KAFKA_BATCHED_RAW_PARQUET} files, which are addressed by a
- * {@code ManagedTableFileIndex} in each Lakestream entry index. It does not support the
+ * {@code CompactedObjectFileIndex} in each Lakestream entry index. It does not support the
  * historical generic V1 lakehouse format. The implementation is isolated from the generic
  * writer and mixed-source materialization classes in {@code ursa-storage-lakehouse}.
  */

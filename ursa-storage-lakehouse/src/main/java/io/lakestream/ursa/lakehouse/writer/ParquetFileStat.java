@@ -12,10 +12,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.io.WriteResult;
 
 @Builder
@@ -66,12 +62,5 @@ public class ParquetFileStat implements Serializable {
         this.tags = tags;
     }
 
-    public DataFile toDataFile(Table table) {
-        return DataFiles.builder(table.spec())
-            .withPath(fileFullPath)
-            .withFileSizeInBytes(fileSize)
-            .withFormat(FileFormat.PARQUET)
-            .withRecordCount(Long.parseLong(tags.get("totalMessage")))
-            .build();
-    }
+
 }

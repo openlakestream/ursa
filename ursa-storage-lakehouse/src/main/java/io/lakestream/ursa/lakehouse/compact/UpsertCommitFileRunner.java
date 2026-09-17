@@ -54,7 +54,7 @@ public class UpsertCommitFileRunner extends AbstractCommitRunner implements Comm
         // TODO: optimize here
         // Resolve tolerantly: the SDT sink may be a non-lakehouse, inline-commit sink (e.g. ClickHouse)
         // selected via the materialization catalog, in which case lakehouseType is not an Iceberg/Delta
-        // managed format. A null committer means "no external lakehouse commit" — the managed Compacted
+        // managed format. A null committer means "no external lakehouse commit" — the internal Compacted
         // Object is still registered (compactOxiaIndex) and the offload cursor advanced.
         switch (config.getLakehouseTypeOrNone()) {
             case ICEBERG:
@@ -67,7 +67,7 @@ public class UpsertCommitFileRunner extends AbstractCommitRunner implements Comm
                 break;
             default:
                 this.lakehouseCommitter = null;
-                log.info("No external lakehouse committer (lakehouseType={}); SBT-only / inline-commit "
+                log.info("No external lakehouse committer (lakehouseType={}); internal CO-only / inline-commit "
                         + "SDT sink for parentTopic: {}", config.getLakehouseTypeOrNone(), parentTopic);
                 break;
         }
@@ -167,13 +167,6 @@ public class UpsertCommitFileRunner extends AbstractCommitRunner implements Comm
                             for (DataFile dataFile : writeResult.dataFiles()) {
                                 compactionMetrics.getCommittedParquetFileBytes().set(dataFile.fileSizeInBytes());
                             }
-                        }
-                    }
-                } else if (icebergCompactStreamTask.getWriteResult() != null) {
-                    DataFile[] dataFiles = icebergCompactStreamTask.getWriteResult().dataFiles();
-                    if (dataFiles != null) {
-                        for (DataFile dataFile : dataFiles) {
-                            compactionMetrics.getCommittedParquetFileBytes().set(dataFile.fileSizeInBytes());
                         }
                     }
                 }
@@ -283,9 +276,6 @@ public class UpsertCommitFileRunner extends AbstractCommitRunner implements Comm
             if (icebergCompactStreamTask.getWriteResults() != null
                     && !icebergCompactStreamTask.getWriteResults().isEmpty()) {
                 return ParquetFileStat.fromWriteResults(icebergCompactStreamTask.getWriteResults(), tags);
-            }
-            if (icebergCompactStreamTask.getWriteResult() != null) {
-                return ParquetFileStat.fromWriteResults(List.of(icebergCompactStreamTask.getWriteResult()), tags);
             }
         }
         if (compactStreamTask instanceof DeltaCompactStreamTask deltaCompactStreamTask) {

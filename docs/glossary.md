@@ -18,8 +18,6 @@ An alphabetical reference of terms used in Ursa documentation and codebase.
 
 ## F-L
 
-**Internal Table**: A table managed by Ursa that represents Compacted Objects indexed for both streaming and analytical access.
-
 **Leaderless Architecture**: Ursa's design that eliminates leader-based replication, reducing cross-AZ traffic and operational complexity.
 
 ## M-R
@@ -40,7 +38,7 @@ An alphabetical reference of terms used in Ursa documentation and codebase.
 
 **Stream Offset Index**: A multi-level index mapping logical offsets to physical storage locations within WAL and Compacted Objects.
 
-**Stream-Table Duality**: The concept where data can be accessed as both a stream and a table.
+**Table Materialization**: Delivery of stream records into an external destination table, independently of internal stream storage.
 
 ## T-W
 

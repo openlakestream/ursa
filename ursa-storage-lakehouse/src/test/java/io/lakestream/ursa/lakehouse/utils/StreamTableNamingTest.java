@@ -9,14 +9,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.lakestream.api.SourceMetadataProperties;
 import io.lakestream.api.materialization.TableIdentifier;
-import io.lakestream.api.materialization.TableMode;
 import java.util.Map;
 import java.util.Properties;
 import org.junit.jupiter.api.Test;
 
 /**
- * The commit side prefers the final identity persisted by materialization and retains template and
- * stream-name resolution for tasks created by older versions.
+ * Writers and committers share table identity resolution.
  */
 class StreamTableNamingTest {
 
@@ -34,26 +32,13 @@ class StreamTableNamingTest {
     @Test
     void newExternalWriterDefaultsToSourceLogicalName() {
         Properties properties = new Properties();
-        properties.setProperty("streamTableMode", "EXTERNAL");
         properties.setProperty(SourceMetadataProperties.LOGICAL_NAME_PROPERTY, "orders");
         properties.setProperty("lakestream.kafka.topic.name", "legacy-orders");
 
-        TableIdentifier table = StreamTableNaming.resolveForWriter(LOG_NAME, properties);
+        TableIdentifier table = StreamTableNaming.resolve(LOG_NAME, properties);
 
         assertThat(table).isEqualTo(new TableIdentifier("default", "orders"));
-        // An already-written legacy task has no persisted destination. Its committer must retain the
-        // historical storage-name fallback rather than guessing that its writer used the new default.
-        assertThat(StreamTableNaming.resolve(LOG_NAME, properties).name())
-                .isEqualTo("orders-topic-id-DoZSD7MWQRGZSg7TTy1u7w");
-    }
 
-    @Test
-    void knownExternalWriterUsesLogicalDefaultWhenLegacyTaskOmitsMode() {
-        Properties properties = new Properties();
-        properties.setProperty(SourceMetadataProperties.LOGICAL_NAME_PROPERTY, "orders");
-
-        assertThat(StreamTableNaming.resolveForWriter(LOG_NAME, properties, TableMode.EXTERNAL))
-                .isEqualTo(new TableIdentifier("default", "orders"));
     }
 
     @Test

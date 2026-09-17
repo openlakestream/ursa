@@ -11,7 +11,6 @@ import io.lakestream.ursa.compaction.task.CompactStreamTask;
 import io.lakestream.ursa.lakehouse.delta.AddFileAction;
 import io.lakestream.ursa.lakehouse.delta.DeltaTable;
 import io.lakestream.ursa.lakehouse.delta.ExternalDeltaTableFactory;
-import io.lakestream.ursa.lakehouse.delta.ManagedDeltaTable;
 import io.lakestream.ursa.lakehouse.exception.LakehouseException;
 import io.lakestream.ursa.lakehouse.utils.AvroSchemaUtilExtended;
 import io.lakestream.ursa.lakehouse.utils.StreamTableNaming;
@@ -46,12 +45,7 @@ public class DeltaCommitter implements LakehouseCommitter {
         this.config = config;
         this.parentTopic = parentTopic;
         String destination = StreamTableNaming.qualifiedName(resolvedIdentifier);
-        boolean isManagedMode = config.getStreamTableMode() == LakehouseConfiguration.StreamTableMode.MANAGED;
-        if (isManagedMode) {
-            this.deltaTable = new ManagedDeltaTable(config, destination);
-        } else {
-            this.deltaTable = ExternalDeltaTableFactory.getDeltaTable(config, destination);
-        }
+        this.deltaTable = ExternalDeltaTableFactory.getDeltaTable(config, destination);
     }
 
     public boolean tableExists() {
@@ -180,11 +174,6 @@ public class DeltaCommitter implements LakehouseCommitter {
     public long commit(List<ParquetFileStat> fileStats)
             throws LakehouseException {
         return deltaTable.commit(fileStats);
-    }
-
-    @Override
-    public void delete(List<ParquetFileStat> fileStats) throws LakehouseException {
-        deltaTable.delete(fileStats);
     }
 
     @Override

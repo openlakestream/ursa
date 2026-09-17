@@ -259,13 +259,7 @@ public abstract class AbstractLakehouseWriter implements LakehouseRecordWriter<G
                     writer.setSecondaryIndexKey("offset");
                 }
 
-                // add the real message numbers
-                if (!writeNumberOfMessagesForThisEntry.get()) {
-                    AtomicLong messageCounter = (AtomicLong) writer.getExtraMetadata()
-                            .computeIfAbsent(BATCH_MESSAGE_COUNT, k -> new AtomicLong(0));
-                    messageCounter.addAndGet(lakehouseEntryMetadata.getNumberOfMessagesInBatch());
-                    writeNumberOfMessagesForThisEntry.set(true);
-                }
+
             }
 
             long writeStart = System.nanoTime();
@@ -275,6 +269,14 @@ public abstract class AbstractLakehouseWriter implements LakehouseRecordWriter<G
 
             if (objectLakehouseEntry.metadata().isPresent()) {
                 var lakehouseEntryMetadata = objectLakehouseEntry.metadata().get();
+                // write() may rotate the Parquet file when the schema changes. Count only after
+                // rotation, against the file that actually received this record. Decoded records
+                // represent one message; raw records represent an entire Kafka batch.
+                long messages = serializeType == EntrySerdeFactory.SerdeType.KAFKA_BATCHED_RAW_PARQUET
+                        ? lakehouseEntryMetadata.getNumberOfMessagesInBatch() : 1;
+                AtomicLong messageCounter = (AtomicLong) writer.getExtraMetadata()
+                        .computeIfAbsent(BATCH_MESSAGE_COUNT, k -> new AtomicLong(0));
+                messageCounter.addAndGet(messages);
                 // update the end offset in the current writer
                 var lakehouseEntryOffset = lakehouseEntryMetadata.getLakehouseEntryOffset();
                 if (lakehouseEntryOffset != null) {

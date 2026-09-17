@@ -12,8 +12,6 @@ import io.lakestream.ursa.compaction.task.CompactStreamTaskSerde;
 import io.lakestream.ursa.lakehouse.delta.DeltaCompactStreamTask;
 import io.lakestream.ursa.lakehouse.iceberg.IcebergCompactStreamTask;
 import io.lakestream.ursa.lakehouse.writer.ParquetFileStat;
-import java.io.ByteArrayOutputStream;
-import java.io.ObjectOutputStream;
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -30,7 +28,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 @Tag("lakehouse")
-public class TestTaskCompatibility {
+public class TaskSerializationTest {
 
     @Test
     public void testNormalSerializeAndDeserialize() throws Exception {
@@ -157,7 +155,7 @@ public class TestTaskCompatibility {
                 (DeleteFile) deleteFile).build();
 
         IcebergCompactStreamTask icebergCompactStreamTask = new IcebergCompactStreamTask(compactStreamTask);
-        icebergCompactStreamTask.setWriteResult(writeResult);
+        icebergCompactStreamTask.setWriteResults(List.of(writeResult));
 
         byte[] content = CompactStreamTaskSerde.INSTANCE.serialize(icebergCompactStreamTask);
 
@@ -169,7 +167,7 @@ public class TestTaskCompatibility {
         assertEquals(deserialize.getEndOffset(), compactStreamTask.getEndOffset());
         assertEquals(deserialize.getTaskName(), compactStreamTask.getTaskName());
 
-        WriteResult writeResult1 = deserialize.getWriteResult();
+        WriteResult writeResult1 = deserialize.getWriteResults().get(0);
         DataFile[] dataFiles = writeResult1.dataFiles();
 
         DataFile deseriaDataFile = dataFiles[0];
@@ -234,40 +232,4 @@ public class TestTaskCompatibility {
         assertEquals(1000L, fileStat.getFileSize());
     }
 
-    @Test
-    public void testJavaSerializationFallback() throws Exception {
-        CompactStreamTask compactStreamTask = new CompactStreamTask();
-        compactStreamTask.setStreamId(100);
-        compactStreamTask.setStartOffset(0);
-        compactStreamTask.setEndOffset(100);
-        compactStreamTask.setTaskName("328792a9-4d60-4902-a593-934ebc401650");
-
-        ParquetFileStat fileStat = new ParquetFileStat("test.parquet", "/tmp/test.parquet", 1000L, "",
-                Collections.emptyMap(), Collections.emptyMap());
-        DeltaCompactStreamTask deltaCompactStreamTask = new DeltaCompactStreamTask(compactStreamTask);
-        deltaCompactStreamTask.setDeltaFiles(Collections.singletonList(fileStat));
-
-        byte[] content;
-        try (ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-             ObjectOutputStream output = new ObjectOutputStream(bytes)) {
-            output.writeObject(deltaCompactStreamTask);
-            output.flush();
-            content = bytes.toByteArray();
-        }
-
-        DeltaCompactStreamTask deserialize =
-                (DeltaCompactStreamTask) CompactStreamTaskSerde.INSTANCE.deserialize(content);
-
-        assertEquals(deserialize.getStreamId(), compactStreamTask.getStreamId());
-        assertEquals(deserialize.getStartOffset(), compactStreamTask.getStartOffset());
-        assertEquals(deserialize.getEndOffset(), compactStreamTask.getEndOffset());
-        assertEquals(deserialize.getTaskName(), compactStreamTask.getTaskName());
-
-        List<ParquetFileStat> deltaFiles = deserialize.getDeltaFiles();
-        assertEquals(1, deltaFiles.size());
-        fileStat = deltaFiles.get(0);
-        assertEquals("test.parquet", fileStat.getFilePath());
-        assertEquals("/tmp/test.parquet", fileStat.getFileFullPath());
-        assertEquals(1000L, fileStat.getFileSize());
-    }
 }

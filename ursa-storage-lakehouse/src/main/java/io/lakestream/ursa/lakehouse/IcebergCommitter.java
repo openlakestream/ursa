@@ -36,16 +36,9 @@ public class IcebergCommitter implements LakehouseCommitter {
     private final IcebergTable icebergTable;
     private final TableIdentifier identifier;
     private final String parentTopic;
-    private final IcebergCommitType lakehouseWriterType;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private final Map<String, MessageId> topicMessageIdMap = new HashMap<>();
     private long lastUpdatedSnapshotSequenceNumber = -1;
-
-    public enum IcebergCommitType {
-        EXTERNAL_ICEBERG,
-        MANAGED
-    }
-
 
     public IcebergCommitter(LakehouseConfiguration config, String parentTopic) {
         this(config, parentTopic, StreamTableNaming.resolve(parentTopic, config.getProperties()));
@@ -60,7 +53,6 @@ public class IcebergCommitter implements LakehouseCommitter {
         this.identifier = TableIdentifier.of(
                 Namespace.of(resolvedIdentifier.namespace()), resolvedIdentifier.name());
         this.icebergTable = new IcebergTable(config, identifier);
-        this.lakehouseWriterType = getIcebergCommitType(config);
     }
 
     @Override
@@ -227,16 +219,7 @@ public class IcebergCommitter implements LakehouseCommitter {
         if (!tableExists()) {
             throw new LakehouseException("Table not exists for topic: " + parentTopic);
         }
-        return icebergTable.commit(lakehouseWriterType, fileStats);
-    }
-
-    @Override
-    public void delete(List<ParquetFileStat> fileStats) throws LakehouseException {
-        if (!tableExists()) {
-            throw new LakehouseException("Table not exists for topic: " + parentTopic);
-        }
-        log.info("Delete iceberg table files for topic: {}, fileStats: {}", parentTopic, fileStats);
-        icebergTable.delete(fileStats);
+        return icebergTable.commit(fileStats);
     }
 
     @Override
@@ -260,17 +243,6 @@ public class IcebergCommitter implements LakehouseCommitter {
     @Override
     public String getName() {
         return "iceberg";
-    }
-
-    protected static IcebergCommitType getIcebergCommitType(LakehouseConfiguration config) {
-        if (config.getStreamTableMode() == LakehouseConfiguration.StreamTableMode.MANAGED) {
-            return IcebergCommitType.MANAGED;
-        } else if (config.getStreamTableMode() == LakehouseConfiguration.StreamTableMode.EXTERNAL
-            && config.getLakehouseType() == LakehouseConfiguration.LakehouseType.ICEBERG) {
-            return IcebergCommitType.EXTERNAL_ICEBERG;
-        } else {
-            throw new UnsupportedOperationException("Not support lakehouse type: " + config.getLakehouseType());
-        }
     }
 
     @Override

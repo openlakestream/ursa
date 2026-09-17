@@ -674,16 +674,9 @@ public class StorageConfig {
     )
     private String unityCatalogToken;
 
-    // Managed Table and External Table
     @FieldContext(
         category = CATEGORY_COMPACT,
-        doc = "The stream table mode, available value is: [MANAGED, EXTERNAL]"
-    )
-    private String streamTableMode = "MANAGED";
-
-    @FieldContext(
-        category = CATEGORY_COMPACT,
-        doc = "Whether support upsert operation. The upsert only support in EXTERNAL table mode. Default is false."
+        doc = "Whether support upsert operation. Supported by compatible table sinks. Default is false."
     )
     private boolean upsertModeEnabled = false;
 
