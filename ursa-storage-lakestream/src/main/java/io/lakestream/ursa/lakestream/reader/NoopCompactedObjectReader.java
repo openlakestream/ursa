@@ -4,26 +4,15 @@
  */
 package io.lakestream.ursa.lakestream.reader;
 
-import io.lakestream.ursa.storage.Entry;
+import io.lakestream.api.EntryIndex;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 
 public class NoopCompactedObjectReader implements CompactedObjectReader {
 
     @Override
-    public CompletableFuture<ReadResult> readMessagesAsync(String path, long startOffset, long baseOffset,
-                                                      long maxNumOfMessages, long maxSize) {
-        return CompletableFuture.failedFuture(new IOException("Not available because lakehouse reader is disabled"));
-    }
-
-    @Override
-    public boolean hasSpaceInCache() {
-        return false;
-    }
-
-    @Override
-    public CompletableFuture<Entry> preFetchMessagesAsync(String path, long startOffset, long baseOffset,
-                                                          long maxNumOfMessages, long maxSize, long estimatedSize) {
+    public CompletableFuture<ReadResult> readMessagesWithEntryIndexAsync(
+            EntryIndex entryIndex, long startOffset, long baseOffset, long maxNumOfMessages, long maxSize) {
         return CompletableFuture.failedFuture(new IOException("Not available because lakehouse reader is disabled"));
     }
 

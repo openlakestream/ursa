@@ -17,7 +17,6 @@ Kafka compaction writes this format with a `CompactedObjectFileIndex` in the Lak
 `.index` file by Kafka offset, and returns owned `LogEntry` buffers. Callers must close every
 returned entry exactly once.
 
-The artifact intentionally does not support the historical V1 generic lakehouse format.
 An `EntryIndex` without `CompactedObjectFileIndex`, or a Parquet file with a different serde type,
 fails explicitly.
 

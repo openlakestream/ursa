@@ -48,8 +48,7 @@ final class KafkaLakehouseReader implements CompactedObjectReader {
         this.executor = executor;
     }
 
-    @Override
-    public Optional<CompactedObjectFileIndex> getCompactedObjectFileIndex(EntryIndex entryIndex) {
+    private Optional<CompactedObjectFileIndex> getCompactedObjectFileIndex(EntryIndex entryIndex) {
         Map<String, String> metadata = entryIndex.extraData().orElse(new HashMap<>());
         String serialized = metadata.get(CompactedObjectFileIndex.NAME);
         return serialized == null
@@ -67,7 +66,8 @@ final class KafkaLakehouseReader implements CompactedObjectReader {
             return CompletableFuture.failedFuture(error);
         }
         if (fileIndex.isEmpty()) {
-            return unsupportedV1();
+            return CompletableFuture.failedFuture(
+                    new IOException("Missing compacted object file index in entry metadata"));
         }
         try {
             String filePath = fileIndex.get().get(startOffset);
@@ -76,12 +76,6 @@ final class KafkaLakehouseReader implements CompactedObjectReader {
         } catch (RuntimeException error) {
             return CompletableFuture.failedFuture(error);
         }
-    }
-
-    @Override
-    public CompletableFuture<ReadResult> readMessagesAsync(
-            String path, long startOffset, long baseOffset, long maxNumOfMessages, long maxSize) {
-        return unsupportedV1();
     }
 
     private CompletableFuture<ReadResult> readV2(
@@ -159,7 +153,7 @@ final class KafkaLakehouseReader implements CompactedObjectReader {
      */
     static ReadResult transferEntries(List<Entry> entries) {
         try {
-            return new ReadResult(true, Entry.toLogEntries(entries));
+            return new ReadResult(Entry.toLogEntries(entries));
         } catch (Throwable error) {
             throw new KafkaLakehouseReadException("Failed to convert Kafka V2 lakehouse entries", error);
         }
@@ -202,24 +196,6 @@ final class KafkaLakehouseReader implements CompactedObjectReader {
                 error.addSuppressed(cleanupFailure);
             }
         }
-    }
-
-    private static CompletableFuture<ReadResult> unsupportedV1() {
-        return CompletableFuture.failedFuture(new UnsupportedOperationException(
-                "Kafka-only lakehouse reader currently supports V2 KAFKA_BATCHED_RAW_PARQUET files only; "
-                        + "V1 compacted parquet requires the legacy ursa-storage-lakehouse runtime"));
-    }
-
-    @Override
-    public boolean hasSpaceInCache() {
-        return false;
-    }
-
-    @Override
-    public CompletableFuture<Entry> preFetchMessagesAsync(
-            String path, long startOffset, long baseOffset, long maxNumOfMessages, long maxSize, long estimatedSize) {
-        return CompletableFuture.failedFuture(new UnsupportedOperationException(
-                "Kafka-only lakehouse reader does not provide a prefetch cache"));
     }
 
     @Override

@@ -53,8 +53,7 @@ public class LakehouseKafkaReaderV2 implements CompactedObjectReader {
         }
     }
 
-    @Override
-    public CompletableFuture<ReadResult> readMessagesAsync(String path, long startOffset, long baseOffset,
+    private CompletableFuture<ReadResult> readMessagesAsync(String path, long startOffset, long baseOffset,
                                                       long maxNumOfMessages, long maxSize) {
         final int maxMessages;
         try {
@@ -77,7 +76,7 @@ public class LakehouseKafkaReaderV2 implements CompactedObjectReader {
                 .thenApply(genericEntries -> {
                     List<Entry> entries = unwrapEntries(genericEntries);
                     var entryList = Entry.toLogEntries(entries);
-                    return new ReadResult(true, entryList);
+                    return new ReadResult(entryList);
                 }).whenComplete((result, error) ->
                     releasePooledReader(pooledReader, result, error));
             return OwnedResultFutures.transfer(read, result -> {
@@ -147,17 +146,6 @@ public class LakehouseKafkaReaderV2 implements CompactedObjectReader {
             }
             throw mappingFailure;
         }
-    }
-
-    @Override
-    public boolean hasSpaceInCache() {
-        return false;
-    }
-
-    @Override
-    public CompletableFuture<Entry> preFetchMessagesAsync(String path, long startOffset, long baseOffset,
-                                                          long maxNumOfMessages, long maxSize, long estimatedSize) {
-        throw new UnsupportedOperationException("prefetch in the lakehouse v2 is not supported");
     }
 
     @Override

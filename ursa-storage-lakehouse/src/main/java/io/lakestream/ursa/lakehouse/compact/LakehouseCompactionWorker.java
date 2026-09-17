@@ -102,7 +102,7 @@ public class LakehouseCompactionWorker implements CompactionTaskProcessor {
             compactedObjectWriter = lakehouseFactory.getCompactedObjectWriter(topic, propertiesForWriter);
             externalWriter = lakehouseFactory.getExternalWriter(topic, propertiesForWriter);
             if (externalWriter.isPresent()) {
-                // Legacy workers create writers before policy resolution. Resolve the SDT destination
+                // This worker creates writers before policy resolution. Resolve the SDT destination
                 // now and persist it on the task so the asynchronous committer uses the same identity.
                 // Do this only after constructing the internal CO writer so SDT naming cannot affect its path.
                 Properties namingProperties = new Properties();

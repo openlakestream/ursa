@@ -99,11 +99,10 @@ Token needs `read:packages` scope.
 
 ## Lakehouse-Specific Pitfalls
 
-### v2 vs v1 Code Paths
-**Problem**: The lakehouse module has two architectures:
-- `io.lakestream.ursa.lakehouse.v2.*` — current, active development
-- `io.lakestream.ursa.lakehouse.*` (root packages) — legacy v1
-**Rule**: All new lakehouse code goes in `v2/` packages. Don't add to root packages.
+### Lakehouse Code Paths
+The active readers, writers, and materializers live in `io.lakestream.ursa.lakehouse.v2.*`.
+Root packages still contain shared compaction, catalog, Iceberg, and Delta code used by this path.
+The historical v1 compaction format and its reader fallback have been removed.
 
 ### Vendor Code
 **Problem**: Lakehouse contains patched upstream code:

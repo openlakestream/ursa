@@ -92,7 +92,7 @@ class DefaultUnifiedStreamReaderTest {
             new EntryHeader(50, 10, 2000L, 500, 1000),
             Unpooled.wrappedBuffer(new byte[]{4, 5, 6}));
         CompactedObjectReader.ReadResult readResult =
-            new CompactedObjectReader.ReadResult(false, List.of(parquetEntry.toLogEntry()));
+            new CompactedObjectReader.ReadResult(List.of(parquetEntry.toLogEntry()));
 
         when(compactedReader.readMessagesWithEntryIndexAsync(
             eq(entryIndex), eq(50L), eq(50L), eq(5L), eq(1024L)))
@@ -126,7 +126,7 @@ class DefaultUnifiedStreamReaderTest {
             new EntryHeader(105, 5, 3001L, 200, 400),
             Unpooled.wrappedBuffer(new byte[]{2}));
         CompactedObjectReader.ReadResult readResult =
-            new CompactedObjectReader.ReadResult(true,
+            new CompactedObjectReader.ReadResult(
                 List.of(entry1.toLogEntry(), entry2.toLogEntry()));
 
         when(compactedReader.readMessagesWithEntryIndexAsync(
@@ -160,7 +160,7 @@ class DefaultUnifiedStreamReaderTest {
         when(compactedReader.readMessagesWithEntryIndexAsync(
             entryIndex, startOffset, startOffset, 1L, 1024L))
             .thenReturn(CompletableFuture.completedFuture(
-                new CompactedObjectReader.ReadResult(true, List.of(brokenEntry))));
+                new CompactedObjectReader.ReadResult(List.of(brokenEntry))));
 
         assertThrows(ExecutionException.class,
             () -> reader.readEntries(logId, startOffset, 1, 1024L).get());
