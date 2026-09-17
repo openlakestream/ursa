@@ -23,6 +23,30 @@ class LakehouseFactoryTest {
     Path storage;
 
     @Test
+    void compactedObjectWriterCanBeDisabledAndOverriddenPerTask() throws Exception {
+        Properties properties = new Properties();
+        properties.setProperty("storagePath", storage.toUri().toString());
+        properties.setProperty("compactedObjectEnabled", "false");
+        // Disabling CO must return before attempting to construct a writer.
+        properties.setProperty("entrySerDeType", "invalid");
+        try (var factory = new LakehouseFactory(new LakehouseConfiguration(properties), mock(SchemaService.class))) {
+            assertThat(factory.getCompactedObjectWriter("default/orders-partition-0", Map.of())).isEmpty();
+            var writer = factory.getCompactedObjectWriter("default/orders-partition-0", Map.of(
+                    "compactedObjectEnabled", "true", "entrySerDeType", "KAFKA_BATCHED_RAW_PARQUET"))
+                    .orElseThrow();
+            writer.close();
+        }
+    }
+
+    @Test
+    void taskCanDisableCompactedObjectWriterWithDefaultConfiguration() throws Exception {
+        try (var factory = new LakehouseFactory(new LakehouseConfiguration(), mock(SchemaService.class))) {
+            assertThat(factory.getCompactedObjectWriter("default/orders-partition-0",
+                    Map.of("compactedObjectEnabled", "false"))).isEmpty();
+        }
+    }
+
+    @Test
     void internalWriterExistsWithoutExternalTableAndDoesNotOpenCatalog() throws Exception {
         Properties properties = new Properties();
         properties.setProperty("storagePath", storage.toUri().toString());

@@ -74,10 +74,13 @@ public class LakehouseFactory implements AutoCloseable {
         return new Semaphore(permits);
     }
 
-    /** Creates the internal compacted-object writer, independently of table materialization. */
+    /** Creates the internal compacted-object writer when enabled, independently of table materialization. */
     public Optional<LakehouseRecordWriter<GenericEntry>> getCompactedObjectWriter(
             String topic, Map<String, String> prop) {
         LakehouseConfiguration configuration = generateLakehouseConfiguration(prop);
+        if (!configuration.isCompactedObjectEnabled()) {
+            return Optional.empty();
+        }
         String schemaTopic = KafkaSourceMetadata.topicName(topic, prop);
         return Optional.of(new LakehouseWriter(topic, schemaTopic, entrySerdeFactory, configuration, provider));
     }

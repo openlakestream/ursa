@@ -89,7 +89,8 @@ public class LakehouseMaterializationService implements MaterializationService {
     /**
      * Lazily-built factory for the internal CO writer. The {@code LakehouseWriter}
      * compacts the same WAL entries into topic-grouped parquet "Compacted Objects" — the stream's own
-     * data — independently of the external (SDT) sink. Always enabled for source compaction tasks.
+     * data — independently of the external (SDT) sink. Enabled by default for source compaction tasks,
+     * and controlled by {@code compactedObjectEnabled}.
      */
     private volatile LakehouseFactory lakehouseFactory;
 

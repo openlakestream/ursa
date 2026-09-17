@@ -7,7 +7,9 @@ Ursa keeps stream storage separate from table materialization.
 WAL Objects provide durable storage for new entries. Background compaction creates per-log
 Compacted Objects (COs), including Parquet files. Ursa retains their Stream Offset Index so
 consumers can resume or replay retained messages by offset. Ursa owns CO retention and cleanup.
-Internal COs are storage files, not catalog tables. They remain available when SDT is disabled.
+Internal COs are storage files, not catalog tables. Their generation is enabled by default and
+independent of SDT. Keep `compactedObjectEnabled=true` for UFK stream replay; external Kafka/Pulsar
+table materialization can set it to `false` when internal COs are not needed.
 
 ## External tables (SDT)
 

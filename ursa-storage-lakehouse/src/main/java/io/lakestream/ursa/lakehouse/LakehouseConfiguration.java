@@ -100,6 +100,7 @@ public class LakehouseConfiguration {
     public static final String DLT_SUFFIX = "dlt.suffix";
     public static final String DEFAULT_DLT_SUFFIX = "_dlt";
     public static final String DELTA_DLT_ENABLED = "delta.dlt.enabled";
+    public static final String COMPACTED_OBJECT_ENABLED = "compactedObjectEnabled";
 
     // Checks if input schema and table schema are same(default: false)
     public static final String CHECK_ORDERING = "check-ordering";
@@ -619,6 +620,11 @@ public class LakehouseConfiguration {
 
 
         return IcebergCatalogBackendType.valueOf(catalogType.toUpperCase(Locale.ROOT));
+    }
+
+    /** Whether compaction produces internal files for stream replay, independently of SDT. */
+    public boolean isCompactedObjectEnabled() {
+        return Boolean.parseBoolean(properties.getProperty(COMPACTED_OBJECT_ENABLED, "true"));
     }
 
     public String getPartitionKey() {

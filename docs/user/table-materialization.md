@@ -4,6 +4,14 @@ Ursa Storage can materialize a stream into an external table for analytics
 consumption. The framework supports Apache Iceberg, Delta Lake, Delta on
 Unity Catalog, and ClickHouse out of the box.
 
+Internal compacted objects (COs) are controlled independently of external table
+materialization by `compactedObjectEnabled` (default: `true`) in the compaction
+service configuration. Keep it enabled for UFK, which needs WAL-to-CO compaction
+for stream replay. For external Kafka/Pulsar table materialization that does not
+need internal COs, set `compactedObjectEnabled=false`; external table writes and
+commits continue normally. This setting does not enable an external sink: one must
+still be configured for external-only materialization.
+
 ## Concept Quick Reference
 
 - **TableCatalog** — a registered, named table store (e.g.,
