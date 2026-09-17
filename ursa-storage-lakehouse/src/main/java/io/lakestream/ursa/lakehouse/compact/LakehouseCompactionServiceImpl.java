@@ -54,11 +54,7 @@ public class LakehouseCompactionServiceImpl implements CompactionService {
     }
 
     protected CompactionTaskProcessor getCompactWorker(CompactStreamTask task) {
-        return compactWorkers.compute(task.getTopic(), (topic, existingWorker) -> {
-            if (existingWorker instanceof LakehouseCompactionWorker) {
-                return existingWorker;
-            }
-            closeWorker(existingWorker);
+        return compactWorkers.computeIfAbsent(task.getTopic(), topic -> {
             CompactionResources sourceResources = resources();
             return new LakehouseCompactionWorker(
                     sourceResources.lakehouseFactory(),
