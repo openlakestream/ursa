@@ -434,16 +434,7 @@ public class StorageConfig {
     @Builder.Default
     @FieldContext(
         category = CATEGORY_COMPACT,
-        doc = "The compaction service class. Deprecated: use materializationServiceClass instead."
-    )
-    private String compactionServiceClass = "io.lakestream.ursa.lakehouse.compact.LakehouseCompactionServiceImpl";
-
-    @Builder.Default
-    @FieldContext(
-        category = CATEGORY_COMPACT,
-        doc = "The materialization service class. Replaces the deprecated compactionServiceClass. "
-            + "If both are set, materializationServiceClass wins. If only compactionServiceClass is set, "
-            + "its value is used and a deprecation warning is logged."
+        doc = "The materialization service class used for all compaction tasks."
     )
     private String materializationServiceClass =
             "io.lakestream.ursa.lakehouse.compact.LakehouseMaterializationService";
@@ -556,14 +547,6 @@ public class StorageConfig {
             doc = "The refresh topic interval in seconds."
     )
     private long refreshLocalTopicInternalInSeconds = 60;
-
-    @Builder.Default
-    @FieldContext(
-            category = CATEGORY_COMPACT,
-            doc = "The compaction maintenance interval in seconds. "
-                + "This drives cache cleanup and other periodic compaction maintenance tasks."
-    )
-    private long compactionMaintenanceIntervalInSeconds = 300;
 
     @Builder.Default
     @FieldContext(
@@ -731,16 +714,6 @@ public class StorageConfig {
             doc = "The threshold to record the non committable task count. Default is 500."
     )
     private int recordNonCommittableTaskThreshold = 500;
-
-    @FieldContext(
-        category = CATEGORY_COMPACT,
-        doc = "Enable LIP-161 stream-to-table materialization dispatch in the compaction worker. "
-                + "When true, the worker dispatches resolved streams through the MaterializationService "
-                + "SPI and the legacy lakehouse committer runners are not started (the SPI path owns the "
-                + "catalog commit). When false (default), behaviour is unchanged: the legacy committer "
-                + "runners commit and materialization dispatch is a no-op. Default: false"
-    )
-    private boolean materializationEnabled = false;
 
     @FieldContext(
             category = CATEGORY_COMPACT,

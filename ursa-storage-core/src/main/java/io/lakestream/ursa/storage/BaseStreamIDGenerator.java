@@ -19,7 +19,7 @@ import io.lakestream.ursa.storage.impl.exception.IDGeneratorException;
  *    ID generators) depending on the specific requirements of the storage system.
  *
  * This interface is typically used in conjunction with other components of the
- * Ursa storage system, such as CompactionService and StorageApi implementations.
+ * Ursa storage system, such as materialization services and StorageApi implementations.
  *
  * @see io.lakestream.ursa.storage.impl.compaction.CompactFileIDGenerator
  * @see io.lakestream.ursa.storage.impl.StreamIdGenerator

@@ -28,7 +28,6 @@ import io.lakestream.ursa.lakehouse.v2.TableCatalogBootstrap;
 import io.lakestream.ursa.materialization.MaterializationService;
 import io.lakestream.ursa.materialization.MaterializationTask;
 import io.lakestream.ursa.storage.impl.StorageConfig;
-import io.lakestream.ursa.storage.impl.compaction.CompactionService;
 import io.lakestream.ursa.storage.impl.compaction.CompactionTaskProviderV2;
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -63,9 +62,6 @@ public class CompactionWorkerMaterializationDispatchTest {
     private CompactTaskManager compactTaskManager;
 
     @Mock
-    private CompactionService compactionService;
-
-    @Mock
     private CompactionTaskProviderV2 compactionTaskProvider;
 
     @Mock
@@ -85,16 +81,14 @@ public class CompactionWorkerMaterializationDispatchTest {
                 .retryableQuarantineInSeconds(10)
                 .nonRetryableQuarantineInSeconds(60)
                 .refreshLocalTaskIntervalInSeconds(5)
-                .materializationEnabled(true)
                 .blackTopicOfCompact(new HashSet<>())
                 .build();
-        return new CompactionWorker(compactTaskManager, compactionService,
-                materializationService, streamCatalog,
+        return new CompactionWorker(compactTaskManager, materializationService, streamCatalog,
                 compactionTaskProvider, config, CompactionMetrics.NOOP);
     }
 
     @Test
-    public void materializeCalledWhenPolicyResolved() throws Exception {
+    public void materializeCalledByDefaultWhenPolicyResolved() throws Exception {
         CompactionWorker worker = createWorker();
 
         String topic = "default/dispatch-topic-partition-0";
@@ -147,7 +141,6 @@ public class CompactionWorkerMaterializationDispatchTest {
 
     private void assertBootstrapDispatch(boolean sdtEnabled, TableCatalogType expectedType) throws Exception {
         Properties props = new Properties();
-        props.setProperty("materializationEnabled", "true");
         props.setProperty("lakehouseType", "ICEBERG");
         props.setProperty("clusterSdtEnabled", Boolean.toString(sdtEnabled));
         Map<String, TableCatalog> catalogs = new HashMap<>();
@@ -178,7 +171,7 @@ public class CompactionWorkerMaterializationDispatchTest {
                 CompletableFuture.completedFuture(catalogs.get(invocation.getArgument(0))));
 
         // Drive one dispatch synchronously, including the real startup policy and fallback resolver.
-        Method dispatch = CompactionWorker.class.getDeclaredMethod("maybeMaterialize", CompactStreamTask.class);
+        Method dispatch = CompactionWorker.class.getDeclaredMethod("materialize", CompactStreamTask.class);
         dispatch.setAccessible(true);
         dispatch.invoke(createWorker(), task);
 
@@ -312,48 +305,6 @@ public class CompactionWorkerMaterializationDispatchTest {
 
         verify(materializationService, never()).materialize(any());
         verify(streamCatalog, never()).resolveMaterialization(any());
-    }
-
-    @Test
-    public void legacyCompactStreamUsedWhenMaterializationDisabled() throws Exception {
-        // materializationEnabled=false → the worker takes the legacy fallback path:
-        // compactionService.compactStream(task) is called and the SPI dispatch is skipped.
-        StorageConfig config = StorageConfig.builder()
-                .retryableQuarantineInSeconds(10)
-                .nonRetryableQuarantineInSeconds(60)
-                .refreshLocalTaskIntervalInSeconds(5)
-                .materializationEnabled(false)
-                .blackTopicOfCompact(new HashSet<>())
-                .build();
-        CompactionWorker worker = new CompactionWorker(compactTaskManager, compactionService,
-                materializationService, streamCatalog,
-                compactionTaskProvider, config, CompactionMetrics.NOOP);
-
-        String topic = "default/legacy-topic-partition-0";
-        CompactStreamTask task = new CompactStreamTask();
-        task.setTopic(topic);
-        task.setStatus(CompactStreamTask.INIT);
-
-        PackagedCompactStreamTask packagedTask = new PackagedCompactStreamTask();
-        packagedTask.setTaskName("task-legacy");
-        packagedTask.setSubTasks(List.of("sub-1"));
-
-        when(compactionTaskProvider.getTask())
-                .thenReturn(packagedTask)
-                .thenReturn(null);
-        when(compactTaskManager.getCompactStreamTask("sub-1"))
-                .thenReturn(CompletableFuture.completedFuture(task));
-        when(compactionTaskProvider.getQuarantinedTopic(topic)).thenReturn(null);
-        when(compactTaskManager.tryLockTask(packagedTask.getTaskName())).thenReturn(true);
-
-        Thread thread = new Thread(worker);
-        thread.start();
-        Thread.sleep(500);
-        thread.interrupt();
-        thread.join(2000);
-
-        verify(compactionService).compactStream(task);
-        verify(materializationService, never()).materialize(any());
     }
 
     private void stubStream(CompactStreamTask task, Optional<ResolvedMaterialization> resolved) {

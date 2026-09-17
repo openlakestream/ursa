@@ -214,7 +214,7 @@ public class CompactedTaskRunner implements Runnable, StartStopRunner {
         boolean hasExternalResults = tasks.stream().anyMatch(task ->
                 task instanceof IcebergCompactStreamTask || task instanceof DeltaCompactStreamTask);
         if (!hasExternalResults) {
-            // Internal COs only update stream indexes, including tasks from LakehouseCompactionWorker.
+            // Internal COs only update stream indexes.
             config = config.withOverrides(Map.of("lakehouseType", "NONE"));
         }
         var runner = createCommitRunner(config, partitionedTopicName);

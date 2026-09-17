@@ -32,8 +32,7 @@ import org.apache.iceberg.io.WriteResult;
  * {@link CompactTaskManager}. The downstream {@code CompactedTaskRunner} then reads {@code COMPACTED}
  * tasks from Oxia, checks status, and applies the batched (group) catalog commit.
  *
- * <p>Extracted from {@code LakehouseCompactionWorker.completeCompaction} so every materialization
- * dispatch reuses the exact same task-completion and persistence logic (rather than committing per
+ * <p>Every materialization dispatch reuses the same task-completion and persistence logic (rather than committing per
  * task, which would bypass the group-commit runner).
  */
 public class CompactionTaskCompleter {

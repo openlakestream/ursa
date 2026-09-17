@@ -2,8 +2,8 @@
 
 Compaction orchestration. 8 Java files in main, 12 in test.
 
-Coordinates WAL → Compacted Object compaction across the cluster, plus
-sink-neutral materialization dispatch via the T10 `MaterializationService` SPI.
+Coordinates internal Compacted Object and external table writes through the
+`MaterializationService` SPI.
 
 ## Key Classes
 
@@ -31,8 +31,7 @@ CompactionScheduler.start()
   │      stays free of integration-package imports)
   ├── initCompactRunner()
   │     spins up N CompactionWorker threads, each holding:
-  │       - CompactionService (legacy WAL → CO path)
-  │       - MaterializationService (new sink dispatch)
+  │       - MaterializationService (internal CO and external sink dispatch)
   │       - StreamCatalog (loadStream + resolveMaterialization)
   └── startLeaderElectionService()
         when elected leader:
@@ -41,11 +40,10 @@ CompactionScheduler.start()
           - storageBindings.createAsyncCompactedDataCleaner().start()
 
 CompactionWorker.run() loop, per task:
-  1. CompactionService.compactStream(task)        (internal WAL → CO)
-  2. StreamMetadata metadata = streamCatalog.loadStream(id)
-  3. if (streamCatalog.resolveMaterialization(id).join().isPresent())
-        materializationService.materialize(MaterializationTask)
-  4. on MaterializationException with non-retryable code:
+  1. StreamMetadata metadata = streamCatalog.loadStream(id)
+  2. Resolve the catalog policy or derive an internal/external destination from task properties
+  3. materializationService.materialize(MaterializationTask)
+  4. On MaterializationException with non-retryable code:
         materializationService.invalidate(streamId)
         (the outer ExceptionCode-based retry/quarantine routes the failure)
 ```
@@ -62,7 +60,6 @@ must return empty.
 |-----|---------|-------|
 | `compactionStorageBindingsClass` | `io.lakestream.ursa.lakehouse.compact.LakehouseCompactionStorageBindings` | Wires the publish/commit/cleaner runners. |
 | `materializationServiceClass` | `io.lakestream.ursa.lakehouse.compact.LakehouseMaterializationService` | The active materialization service. |
-| `compactionServiceClass` | (deprecated alias for the legacy combined service) | Still honoured: when set without `materializationServiceClass`, the scheduler logs a WARN and uses the alias's value. The historical default (`LakehouseCompactionServiceImpl`) is mapped to the new default. |
 
 ## Dependencies
 
@@ -89,7 +86,7 @@ Key tests:
 - `CompactionWorkerTest` — blacklist filtering + per-code quarantine routing
 - `CompactionWorkerMaterializationDispatchTest` — materialize() called when policy resolves
 - `CompactionWorkerMaterializationFailureTest` — invalidate() called on non-retryable failure
-- `CompactionSchedulerWiringTest` — config-key resolution incl. deprecated alias
+- `CompactionSchedulerWiringTest` — service loading and scheduler lifecycle
 - `KafkaE2ETest` — end-to-end compaction flow
 - `LeaderElectionServiceTest` — distributed coordination
 

@@ -173,7 +173,6 @@ Operator-side keys read on `CompactionScheduler` startup:
 |-----|---------|-------|
 | `materializationServiceClass` | `io.lakestream.ursa.lakehouse.compact.LakehouseMaterializationService` | Active `MaterializationService` SPI impl. |
 | `compactionStorageBindingsClass` | `io.lakestream.ursa.lakehouse.compact.LakehouseCompactionStorageBindings` | Wires the publish / commit / cleanup runners. |
-| `compactionServiceClass` | _(deprecated alias)_ | Honoured for one release. The scheduler logs a WARN when set without `materializationServiceClass`. |
 | `iceberg.catalog.<name>.*` / `delta.catalog.<name>.*` / `unityCatalog*` | _(none)_ | Per-catalog connection settings. Translated into `TableCatalog` records on startup by `TableCatalogBootstrap`. |
 | `clickhouse.catalog.<name>.dsn` / `…user` / `…password-ref` | _(none)_ | ClickHouse catalog connection bootstrap. |
 
@@ -186,8 +185,8 @@ Internal Parquet CO generation runs independently of SDT and does not require a 
 The destination backend is selected by its catalog type and materializer factory. Internal CO
 cleanup deletes stream storage files and indexes without changing SDT tables.
 
-An external default policy is generated at startup only when both `materializationEnabled`
-and SDT are enabled (`clusterSdtEnabled`, with `sdt.enabled` taking precedence).
+All compaction tasks use the materialization SPI. An external default policy is generated at
+startup when SDT is enabled (`clusterSdtEnabled`, with `sdt.enabled` taking precedence).
 Disabling SDT prevents this automatic policy creation while preserving internal CO compaction.
 
 CO write results always record the per-file offset index, including when schema changes

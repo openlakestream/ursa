@@ -41,8 +41,7 @@ orchestrator bindings for Iceberg / Delta / Delta-UC:
 | `v2.LakehouseIcebergTableMaterializerFactory` | `catalogType() == TableCatalogType.ICEBERG` |
 | `v2.LakehouseDeltaTableMaterializerFactory` | `catalogType() == TableCatalogType.DELTA` |
 | `v2.LakehouseDeltaUcTableMaterializerFactory` | `catalogType() == TableCatalogType.DELTA_UC` |
-| `compact.LakehouseMaterializationService` | External-write half of the legacy `LakehouseCompactionServiceImpl`, refactored to implement the `MaterializationService` SPI. Includes `invalidate(StreamIdentifier)` which absorbs today's `invalidateCompactWorker(...)`. |
-| `compact.LakehouseCompactionServiceImpl` | Internal WAL→CO compaction half — the lakehouse-specific compactor wiring. Loaded as `compactionServiceClass` legacy default. |
+| `compact.LakehouseMaterializationService` | Implements the `MaterializationService` SPI for internal CO and external table writes. |
 | `compact.LakehouseCompactionStorageBindings` | Default `CompactionStorageBindings` impl loaded reflectively from `ursa-storage-compact`; supplies `PublishCompactTaskRunner`, `CompactedTaskRunner`, `AsyncCompactedDataCleaner`, `CompactedDataCleanupHandler`. |
 
 ## SPI Registration
@@ -58,19 +57,12 @@ Iceberg sub-flavours (Glue / REST / Hadoop / Polaris / Unity) are routed
 through `TableCatalog.connection["catalog-impl"]` — one factory handles all
 Iceberg catalogs.
 
-## T9 Split — Internal vs External Compaction
+## Materialization Dispatch
 
-Before T9, `LakehouseCompactionServiceImpl` carried both halves:
-- WAL → Compacted Object (Parquet on object storage) — the stream's own
-  data, kept here under `compact.LakehouseCompactionServiceImpl`.
-- WAL → external Delta/Iceberg table — extracted to
-  `compact.LakehouseMaterializationService` so the orchestrator can
-  dispatch through the new `MaterializationService` SPI without importing
-  any lakehouse types.
-
-The `CompactionWorker` `instanceof LakehouseCompactionServiceImpl` hack
-and the `S3Exception | AzureException` reach-around were replaced with
-the sink-neutral `MaterializationService.invalidate(streamId)` call.
+`LakehouseMaterializationService` handles both internal Parquet CO files and external
+Delta/Iceberg table files. `CompactionTaskCompleter` persists file results for the group-commit
+runner; inline sinks without file results retire their tasks directly. The orchestrator
+uses the sink-neutral `MaterializationService.invalidate(streamId)` on non-retryable failures.
 
 ### V1 Legacy (161 files — do not extend)
 ```

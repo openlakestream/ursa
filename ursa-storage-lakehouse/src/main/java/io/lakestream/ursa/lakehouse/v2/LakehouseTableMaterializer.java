@@ -38,7 +38,7 @@ import lombok.extern.slf4j.Slf4j;
  * which reads {@code COMPACTED} tasks from Oxia, checks task status, and applies a
  * batched commit (preserving the upsert delete-before-data ordering). Committing
  * here one task at a time would bypass that machinery. See
- * {@code LakehouseCompactionWorker#completeCompaction} for the persistence step that
+ * {@code CompactionTaskCompleter#completeCompaction} for the persistence step that
  * feeds the runner.
  *
  * <p>{@link ExceptionWithCode} raised by the delegate is re-thrown as an
@@ -120,7 +120,7 @@ public final class LakehouseTableMaterializer implements TableMaterializer<Gener
         try {
             // Close the main writer first (it flushes data files AND waits for any in-flight
             // failure-message sends to the DLT writer), then close the DLT writer to finalize its
-            // files — mirroring LakehouseCompactionWorker's externalWriter→dltWriter close order.
+            // files after closing the external writer.
             List<IWriteResult> writeResults = delegate.close();
             this.lastWriteResults = writeResults == null ? Collections.emptyList() : writeResults;
             this.lastDltWriteResults = closeDltWriter();

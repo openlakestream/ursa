@@ -29,7 +29,6 @@ import io.lakestream.ursa.storage.StorageApi;
 import io.lakestream.ursa.storage.UrsaStorage;
 import io.lakestream.ursa.storage.impl.StorageConfig;
 import io.lakestream.ursa.storage.impl.compaction.CommitTaskProvider;
-import io.lakestream.ursa.storage.impl.compaction.CompactionService;
 import io.lakestream.ursa.storage.impl.compaction.CompactionStorageBindings;
 import io.lakestream.ursa.storage.impl.compaction.CompactionTaskProviderV2;
 import io.lakestream.ursa.storage.impl.compaction.StartStopRunner;
@@ -56,7 +55,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
-import javax.annotation.Nullable;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.net.NetUtils;
@@ -72,8 +70,7 @@ import org.slf4j.LoggerFactory;
  *       publish / commit / cleaner runners (config key
  *       {@code compactionStorageBindingsClass}).</li>
  *   <li>A reflectively-loaded {@link MaterializationService} for stream-to-table
- *       dispatch (config key {@code materializationServiceClass}). The deprecated
- *       alias {@code compactionServiceClass} is honoured with a WARN log.</li>
+ *       dispatch (config key {@code materializationServiceClass}).</li>
  *   <li>{@code TableCatalogBootstrap} (loaded reflectively from the integration
  *       module) translates legacy catalog properties into {@code TableCatalog}
  *       records on {@link io.lakestream.api.StreamCatalog}. The
@@ -91,8 +88,6 @@ public class CompactionScheduler {
             INTEGRATION_PKG + ".v2.TableCatalogBootstrap";
     private static final String LAKEHOUSE_LOCK_MANAGERS_CLASS =
             INTEGRATION_PKG + ".utils.lock.LockManagers";
-    private static final String LEGACY_LAKEHOUSE_COMPACTION_SERVICE_CLASS =
-            INTEGRATION_PKG + ".compact.LakehouseCompactionServiceImpl";
 
     private final String hostname;
     protected AsyncOxiaClient oxiaClient;
@@ -100,7 +95,6 @@ public class CompactionScheduler {
     private TopicManager topicManager;
     @Getter
     private final CompactTaskManager compactTaskManager;
-    private final CompactionService compactionService;
     private final MaterializationService materializationService;
     private final CompactionStorageBindings storageBindings;
     private final ExecutorService executor;
@@ -122,11 +116,9 @@ public class CompactionScheduler {
     private final CompactionMetrics compactionMetrics;
     private ScheduledFuture<?> updateLocalTopicsFuture;
     private ScheduledFuture<?> updateCommitTasksFuture;
-    private ScheduledFuture<?> maintenanceFuture;
     private final InstrumentProvider instrumentProvider;
 
     private UrsaStorage ursaStorage;
-    @Nullable
     private IndexedStreamCatalog streamCatalog;
 
     public CompactionScheduler(StorageConfig config)
@@ -155,16 +147,6 @@ public class CompactionScheduler {
                 new DefaultThreadFactory("compact-stream"));
         this.scheduledExecutor = Executors.newSingleThreadScheduledExecutor(
                 new DefaultThreadFactory("refresh-local-topics"));
-        long maintenanceIntervalSeconds = config.getCompactionMaintenanceIntervalInSeconds();
-        if (maintenanceIntervalSeconds > 0) {
-            this.maintenanceFuture = scheduledExecutor.scheduleWithFixedDelay(
-                    this::runCompactionMaintenance,
-                    maintenanceIntervalSeconds,
-                    maintenanceIntervalSeconds,
-                    TimeUnit.SECONDS);
-        } else {
-            this.maintenanceFuture = null;
-        }
         this.scanTopicExecutor = Executors
                 .newSingleThreadExecutor(new DefaultThreadFactory("scan-topic"));
         this.publishTaskExecutor = Executors.newScheduledThreadPool(
@@ -177,8 +159,6 @@ public class CompactionScheduler {
                 new DefaultThreadFactory("commit-parquet"));
 
         this.storageBindings = buildStorageBindings(config);
-        this.compactionService = buildCompactionService(config, resolveCompactionServiceClass(config), storageApi,
-                compactTaskManager, storageOxiaClient, compactionMetrics, storageBindings.getSchemaRegistry());
         this.topicManager = storageBindings.createTopicManager();
         this.materializationService = buildMaterializationService(config, storageBindings, compactionMetrics);
     }
@@ -218,30 +198,17 @@ public class CompactionScheduler {
         this.streamCatalog = openStreamCatalog(openTelemetrySdk);
     }
 
-    @Nullable
-    private IndexedStreamCatalog openStreamCatalog(OpenTelemetrySdk openTelemetrySdk) {
-        try {
-            return new StreamCatalogService()
-                    .open(config.getMetadataStoreUrl(), new DefaultCatalogPaths(), config.getProperties(),
-                            openTelemetrySdk, ursaStorage);
-        } catch (Exception e) {
-            log.warn("Failed to open IndexedStreamCatalog; materialization dispatch will be disabled", e);
-            return null;
-        }
+    private IndexedStreamCatalog openStreamCatalog(OpenTelemetrySdk openTelemetrySdk) throws Exception {
+        return new StreamCatalogService()
+                .open(config.getMetadataStoreUrl(), new DefaultCatalogPaths(), config.getProperties(),
+                        openTelemetrySdk, ursaStorage);
     }
 
     /**
      * Reads a stream's catalog properties by log name, for the compaction tasks published against it.
-     *
-     * <p>Resolved lazily rather than captured: the catalog is opened after the storage bindings are
-     * built, so at binding time there is nothing to hand over yet. Returns an empty map when this
-     * deployment has no catalog.
      */
     private Map<String, String> lookupStreamProperties(String logName) {
         StreamCatalog catalog = this.streamCatalog;
-        if (catalog == null) {
-            return Map.of();
-        }
         StreamIdentifier id = CompactionWorker.toStreamIdentifier(logName);
         StreamMetadata metadata = catalog.loadStream(id).join();
         return metadata == null ? Map.of() : metadata.properties();
@@ -283,61 +250,10 @@ public class CompactionScheduler {
         }
     }
 
-    /**
-     * Honours the new {@code materializationServiceClass} key with the deprecated
-     * {@code compactionServiceClass} as fallback (WARN logged when only the legacy key is set).
-     */
-    private static String resolveMaterializationServiceClass(StorageConfig storageConfig) {
-        Properties props = storageConfig.getProperties();
-        boolean newKeySet = props != null && props.containsKey("materializationServiceClass");
-        boolean legacyKeySet = props != null && props.containsKey("compactionServiceClass");
-        if (newKeySet || !legacyKeySet) {
-            return storageConfig.getMaterializationServiceClass();
-        }
-        String legacy = storageConfig.getCompactionServiceClass();
-        if (LEGACY_LAKEHOUSE_COMPACTION_SERVICE_CLASS.equals(legacy)) {
-            // The legacy default points at the old combined service; map to the new default so the
-            // worker can dispatch through the SPI without the caller having to flip configs.
-            log.warn("compactionServiceClass is deprecated; using materializationServiceClass default {} instead",
-                    storageConfig.getMaterializationServiceClass());
-            return storageConfig.getMaterializationServiceClass();
-        }
-        log.warn("compactionServiceClass is deprecated; falling back to its value {} as materializationServiceClass",
-                legacy);
-        return legacy;
-    }
-
-    /**
-     * Resolves the class name used for the legacy {@link CompactionService} indirection. The
-     * field still drives WAL → CO compaction; the new {@code materializationServiceClass} key
-     * drives the materialization side of T10.
-     */
-    private static String resolveCompactionServiceClass(StorageConfig storageConfig) {
-        return storageConfig.getCompactionServiceClass();
-    }
-
-    private CompactionService buildCompactionService(StorageConfig storageConfig,
-                                                     String compactionClassName, StorageApi storageApi,
-                                                     CompactTaskManager compactTaskManager,
-                                                     AsyncOxiaClient asyncOxiaClient,
-                                                     CompactionMetrics compactionMetrics,
-                                                     Object schemaRegistry) {
-        try {
-            Class<?> clazz = Class.forName(compactionClassName);
-            CompactionService cs = (CompactionService) clazz.getDeclaredConstructor().newInstance();
-            cs.initialize(null, ursaStorage == null ? null : ursaStorage.getFileStorage(), null, storageApi,
-                    compactTaskManager, storageConfig, asyncOxiaClient, compactionMetrics, schemaRegistry);
-            return cs;
-        } catch (ClassNotFoundException | InvocationTargetException | InstantiationException | IllegalAccessException
-                 | NoSuchMethodException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     private MaterializationService buildMaterializationService(StorageConfig storageConfig,
                                                                CompactionStorageBindings bindings,
                                                                CompactionMetrics metrics) {
-        String className = resolveMaterializationServiceClass(storageConfig);
+        String className = storageConfig.getMaterializationServiceClass();
         MaterializationService svc = MaterializationServiceProvider.load(className);
         MaterializationRuntime runtime = buildMaterializationRuntime(bindings, metrics);
         MaterializationServiceConfig svcConfig = buildMaterializationServiceConfig(storageConfig);
@@ -501,10 +417,9 @@ public class CompactionScheduler {
 
     public void initCompactRunner() {
         log.info("Create {} {} compact runners", config.getCompactedThreadNum(),
-                compactionService.getClass().getName());
+                materializationService.getClass().getName());
         for (int i = 0; i < config.getCompactedThreadNum(); i++) {
-            executor.execute(new CompactionWorker(compactTaskManager, compactionService,
-                    materializationService, streamCatalog,
+            executor.execute(new CompactionWorker(compactTaskManager, materializationService, streamCatalog,
                     compactionTaskProvider, config, compactionMetrics));
         }
     }
@@ -522,14 +437,6 @@ public class CompactionScheduler {
         }
     }
 
-    private void runCompactionMaintenance() {
-        try {
-            compactionService.maintenance();
-        } catch (Throwable t) {
-            log.warn("Failed to run compaction maintenance.", t);
-        }
-    }
-
     public void close() throws InterruptedException {
         if (updateLocalTopicsFuture != null) {
             updateLocalTopicsFuture.cancel(true);
@@ -537,10 +444,6 @@ public class CompactionScheduler {
 
         if (updateCommitTasksFuture != null) {
             updateCommitTasksFuture.cancel(true);
-        }
-
-        if (maintenanceFuture != null) {
-            maintenanceFuture.cancel(true);
         }
 
         stopCommitParquetFileRunner();
@@ -583,9 +486,6 @@ public class CompactionScheduler {
             topicManager.close();
         }
 
-        if (compactionService != null) {
-            compactionService.close();
-        }
         if (materializationService != null) {
             try {
                 materializationService.close();
@@ -669,9 +569,7 @@ public class CompactionScheduler {
     }
 
     public void start() {
-        if (streamCatalog != null) {
-            bootstrapTableCatalogs(streamCatalog, config.getProperties());
-        }
+        bootstrapTableCatalogs(streamCatalog, config.getProperties());
         initCompactRunner();
         startLeaderElectionService();
     }

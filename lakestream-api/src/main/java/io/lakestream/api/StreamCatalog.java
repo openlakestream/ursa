@@ -162,9 +162,8 @@ public interface StreamCatalog extends AutoCloseable {
     /**
      * Sets a cluster-wide default materialization policy. This is the lowest-priority baseline:
      * {@link #resolveMaterialization(StreamIdentifier)} resolves a stream policy first, then its
-     * namespace policy, and finally this cluster default. It lets
-     * {@code materializationEnabled=true} (with no {@code materializationDefaultNamespace})
-     * materialize every stream in every namespace without per-namespace authoring.
+     * namespace policy, and finally this cluster default. It allows materialization of every
+     * stream in every namespace without per-namespace authoring.
      *
      * @param policy the cluster-wide default policy
      * @return a future that completes when the policy is set

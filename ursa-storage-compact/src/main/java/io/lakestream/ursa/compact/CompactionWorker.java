@@ -22,40 +22,22 @@ import io.lakestream.ursa.materialization.MaterializationException;
 import io.lakestream.ursa.materialization.MaterializationService;
 import io.lakestream.ursa.materialization.MaterializationTask;
 import io.lakestream.ursa.storage.impl.StorageConfig;
-import io.lakestream.ursa.storage.impl.compaction.CompactionService;
 import io.lakestream.ursa.storage.impl.compaction.CompactionTaskProviderV2;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Per-thread compaction worker invoked by {@code CompactionScheduler}.
- *
- * <p>T10 collapses the lakehouse-coupled control flow into a sink-neutral path:
- * <ul>
- *   <li>The internal WAL → Compacted Object compaction is still dispatched through
- *       {@link CompactionService#compactStream(CompactStreamTask)}.</li>
- *   <li>If the stream resolves an
- *       {@link io.lakestream.api.materialization.ResolvedMaterialization}
- *       policy, the worker hands the task to
- *       {@link MaterializationService#materialize(MaterializationTask)}.</li>
- *   <li>On {@link MaterializationException} the worker reads the carried
- *       {@link ExceptionCode} (T5 polish) and uses the same retry / quarantine
- *       logic previously gated on lakehouse exception subclasses. Non-retryable
- *       codes also call {@link MaterializationService#invalidate(StreamIdentifier)}
- *       so the sink can drop cached writer state.</li>
- * </ul>
- *
- * <p>This class no longer imports any integration-package class — verified by
- * the grep gate in T10.
+ * Per-thread compaction worker that dispatches WAL tasks through the materialization SPI.
+ * Materialization failures use the shared retry, quarantine, and sink invalidation flow.
  */
 @Slf4j
 public class CompactionWorker implements Runnable {
@@ -63,10 +45,7 @@ public class CompactionWorker implements Runnable {
     private static final Pattern PARTITION_SUFFIX = Pattern.compile("-partition-(\\d+)$");
 
     private final CompactTaskManager compactTaskManager;
-    private final CompactionService compactionService;
-    @Nullable
     private final MaterializationService materializationService;
-    @Nullable
     private final StreamCatalog streamCatalog;
     private final CompactionTaskProviderV2 compactionTaskProvider;
     private final long retryableTaskQuarantineInMs;
@@ -74,34 +53,15 @@ public class CompactionWorker implements Runnable {
     private final long waitForAvailableTaskIntervalInMs;
     private final CompactionMetrics compactionMetrics;
     private final Set<String> blackTopicOfCompact;
-    private final StorageConfig config;
 
-    /**
-     * Legacy three-arg constructor preserved for the existing
-     * {@link CompactionWorkerTest} suite. New call sites supply the
-     * materialization service + stream catalog via
-     * {@link #CompactionWorker(CompactTaskManager, CompactionService,
-     * MaterializationService, StreamCatalog, CompactionTaskProviderV2,
-     * StorageConfig, CompactionMetrics)}.
-     */
-    public CompactionWorker(CompactTaskManager compactTaskManager, CompactionService compactionService,
-                            CompactionTaskProviderV2 compactionTaskProvider, StorageConfig config,
-                            CompactionMetrics compactionMetrics) {
-        this(compactTaskManager, compactionService, null, null,
-                compactionTaskProvider, config, compactionMetrics);
-    }
-
-    @SuppressWarnings("ParameterNumber")
-    public CompactionWorker(CompactTaskManager compactTaskManager, CompactionService compactionService,
-                            @Nullable MaterializationService materializationService,
-                            @Nullable StreamCatalog streamCatalog,
+    public CompactionWorker(CompactTaskManager compactTaskManager,
+                            MaterializationService materializationService,
+                            StreamCatalog streamCatalog,
                             CompactionTaskProviderV2 compactionTaskProvider, StorageConfig config,
                             CompactionMetrics compactionMetrics) {
         this.compactTaskManager = compactTaskManager;
-        this.compactionService = compactionService;
-        this.materializationService = materializationService;
-        this.streamCatalog = streamCatalog;
-        this.config = config;
+        this.materializationService = Objects.requireNonNull(materializationService, "materializationService");
+        this.streamCatalog = Objects.requireNonNull(streamCatalog, "streamCatalog");
         this.compactionTaskProvider = compactionTaskProvider;
         this.compactionMetrics = compactionMetrics;
         this.retryableTaskQuarantineInMs = TimeUnit.SECONDS.toMillis(config.getRetryableQuarantineInSeconds());
@@ -189,24 +149,14 @@ public class CompactionWorker implements Runnable {
                 try {
                     for (CompactStreamTask validCompactTask : validCompactTasks) {
                         try {
-                            if (config != null && config.isMaterializationEnabled()) {
-                                // Primary path: dispatch through the sink-neutral materialization SPI
-                                // (unified internal CO + SDT). The legacy internal-compaction call below is the
-                                // flag-controlled fallback only.
-                                maybeMaterialize(validCompactTask);
-                            } else {
-                                // Fallback path (materializationEnabled=false): the legacy internal
-                                // WAL -> Compacted Object compaction. Deprecated in favour of the
-                                // materialization SPI; retained so deployments can roll back.
-                                compactionService.compactStream(validCompactTask);
-                            }
+                            materialize(validCompactTask);
                         } catch (MaterializationException me) {
                             // Sink-neutral failure path: invalidate cached state when the code is
                             // non-retryable so the sink can drop writer state. The outer
                             // ExceptionWithCode handling still applies because
                             // MaterializationException extends RuntimeExceptionWithCode.
                             ExceptionCode code = me.getExceptionCode();
-                            if (!isPureRetryCode(code) && materializationService != null) {
+                            if (!isPureRetryCode(code)) {
                                 try {
                                     materializationService.invalidate(
                                             toStreamIdentifier(validCompactTask.getTopic()));
@@ -272,25 +222,13 @@ public class CompactionWorker implements Runnable {
      * Resolves the stream's effective materialization policy, reads the task's WAL entries, and
      * dispatches them to the {@link MaterializationService}.
      *
-     * <p>Throws a {@link MaterializationException} when materialization is disabled, not wired
-     * (legacy constructor / catalog absent), the topic is not a materializable stream, or the
+     * <p>Throws a {@link MaterializationException} when the topic is not a materializable stream, or the
      * stream resolves no policy. Failures that would otherwise silently drop the offset range
      * (stream load failure, WAL read failure) are escalated as a {@link MaterializationException}
      * so the worker's quarantine/retry path re-runs the task rather than advancing past
      * unmaterialized data.
      */
-    private void maybeMaterialize(CompactStreamTask task) {
-        if (config != null && !config.isMaterializationEnabled()) {
-            log.warn("Materialization disabled by config. skipping materialization for stream {} (task {})",
-                    task.getTopic(), task.getTaskName());
-            throw new MaterializationException(ExceptionCode.INTERNAL_ERROR, "Materialization disabled");
-        }
-        if (materializationService == null || streamCatalog == null) {
-            log.warn("Materialization service or stream catalog not available. "
-                    + "skipping materialization for stream {} (task {})", task.getTopic(), task.getTaskName());
-            throw new MaterializationException(ExceptionCode.INTERNAL_ERROR,
-                "Materialization service or stream catalog not available");
-        }
+    private void materialize(CompactStreamTask task) {
         StreamIdentifier id;
         try {
             id = toStreamIdentifier(task.getTopic());
@@ -329,10 +267,8 @@ public class CompactionWorker implements Runnable {
                     "Failed to resolve materialization for stream " + id.fullName(), re);
         }
         if (resolved.isEmpty()) {
-            // Back-compat: no stream/namespace/cluster policy resolved. Deployments that drive
-            // materialization through compaction task properties (legacy DynamicConfigs + catalog
-            // config) carry the config on the task, so fall back to resolving from the task properties.
-            // TODO: Remove this fallback once all deployments have migrated to catalog policies.
+            // Without a catalog policy, derive the destination from task and deployment properties.
+            // The lakehouse service also uses this path for internal CO-only compaction.
             resolved = materializationService.resolveFromTaskProperties(id, task.getTopic(), props)
                     .map(this::withRegisteredCatalog);
         }
@@ -362,12 +298,9 @@ public class CompactionWorker implements Runnable {
      * {@link StreamCatalog}; task properties carry only the catalog name. So when a catalog with the
      * resolved name is registered, that registration is the source of truth for type / connection /
      * properties — the task-derived table identifier and effective policy are kept. Falls back to the
-     * synthesized catalog when nothing is registered under that name (or no catalog is available).
+     * synthesized catalog when nothing is registered under that name.
      */
     private ResolvedMaterialization withRegisteredCatalog(ResolvedMaterialization resolved) {
-        if (streamCatalog == null) {
-            return resolved;
-        }
         String name = resolved.catalog().name();
         try {
             TableCatalog registered = streamCatalog.getTableCatalog(name).join();

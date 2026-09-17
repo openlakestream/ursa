@@ -77,7 +77,6 @@ The compaction orchestrator uses these implementation-class properties:
 |----------|---------|
 | `materializationServiceClass` | Selects stream-to-table dispatch |
 | `compactionStorageBindingsClass` | Selects publish, commit, and cleanup bindings |
-| `compactionServiceClass` | Deprecated compatibility alias |
 
 ## Code conventions
 

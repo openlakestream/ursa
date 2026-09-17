@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * This class is used throughout the storage system, particularly in:
  * - WalStorage implementation for writing and reading entries.
  * - StorageApi implementation for operations like appending and reading entries.
- * - CompactionService for processing and compacting entries.
+ * - materialization services for processing and compacting entries.
  *
  * Usage considerations:
  * - Ensure proper management of the ByteBuf payload, as it may need to be released when no longer needed.

@@ -7,23 +7,31 @@ package io.lakestream.ursa.compact;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.lakestream.api.LogId;
+import io.lakestream.api.StreamCatalog;
+import io.lakestream.api.StreamLayout;
+import io.lakestream.api.StreamMetadata;
+import io.lakestream.api.materialization.ResolvedMaterialization;
 import io.lakestream.ursa.compaction.CompactTaskManager;
 import io.lakestream.ursa.compaction.metrics.CompactionMetrics;
 import io.lakestream.ursa.compaction.task.CompactStreamTask;
 import io.lakestream.ursa.compaction.task.PackagedCompactStreamTask;
-import io.lakestream.ursa.exception.DataSourceException;
 import io.lakestream.ursa.exception.ExceptionCode;
+import io.lakestream.ursa.materialization.MaterializationException;
+import io.lakestream.ursa.materialization.MaterializationService;
 import io.lakestream.ursa.storage.impl.StorageConfig;
-import io.lakestream.ursa.storage.impl.compaction.CompactionService;
 import io.lakestream.ursa.storage.impl.compaction.CompactionTaskProviderV2;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -40,7 +48,10 @@ public class CompactionWorkerTest {
     private CompactTaskManager compactTaskManager;
 
     @Mock
-    private CompactionService compactionService;
+    private MaterializationService materializationService;
+
+    @Mock
+    private StreamCatalog streamCatalog;
 
     @Mock
     private CompactionTaskProviderV2 compactionTaskProvider;
@@ -52,7 +63,7 @@ public class CompactionWorkerTest {
                 .refreshLocalTaskIntervalInSeconds(5)
                 .blackTopicOfCompact(blackTopics)
                 .build();
-        return new CompactionWorker(compactTaskManager, compactionService,
+        return new CompactionWorker(compactTaskManager, materializationService, streamCatalog,
                 compactionTaskProvider, config, CompactionMetrics.NOOP);
     }
 
@@ -90,8 +101,8 @@ public class CompactionWorkerTest {
         // The blacklisted topic should cause all subtasks to be filtered out,
         // resulting in an empty validCompactTasks list -> task gets quarantined
         verify(compactionTaskProvider).quarantineTask(anyLong(), eq("task-1"));
-        // compactStream should never be called for the blacklisted topic
-        verify(compactionService, never()).compactStream(any());
+        // materialize should never be called for the blacklisted topic
+        verify(materializationService, never()).materialize(any());
     }
 
     @Test
@@ -120,6 +131,8 @@ public class CompactionWorkerTest {
         when(compactTaskManager.tryLockTask("task-2"))
                 .thenReturn(true);
 
+        stubStream(task);
+
         Thread thread = new Thread(worker);
         thread.start();
         Thread.sleep(500);
@@ -127,7 +140,7 @@ public class CompactionWorkerTest {
         thread.join(2000);
 
         // The non-blacklisted topic should be compacted
-        verify(compactionService).compactStream(task);
+        verify(materializationService).materialize(argThat(mt -> mt.sourceTask() == task));
     }
 
     @Test
@@ -154,13 +167,15 @@ public class CompactionWorkerTest {
         when(compactTaskManager.tryLockTask("task-3"))
                 .thenReturn(true);
 
+        stubStream(task);
+
         Thread thread = new Thread(worker);
         thread.start();
         Thread.sleep(500);
         thread.interrupt();
         thread.join(2000);
 
-        verify(compactionService).compactStream(task);
+        verify(materializationService).materialize(argThat(mt -> mt.sourceTask() == task));
     }
 
     @Test
@@ -196,6 +211,8 @@ public class CompactionWorkerTest {
         when(compactTaskManager.tryLockTask("task-4"))
                 .thenReturn(true);
 
+        stubStream(allowedTask);
+
         Thread thread = new Thread(worker);
         thread.start();
         Thread.sleep(500);
@@ -203,8 +220,8 @@ public class CompactionWorkerTest {
         thread.join(2000);
 
         // Only the allowed task should be compacted
-        verify(compactionService).compactStream(allowedTask);
-        verify(compactionService, never()).compactStream(blockedTask);
+        verify(materializationService).materialize(argThat(mt -> mt.sourceTask() == allowedTask));
+        verify(materializationService, never()).materialize(argThat(mt -> mt.sourceTask() == blockedTask));
     }
 
     @Test
@@ -233,7 +250,7 @@ public class CompactionWorkerTest {
     }
 
     /**
-     * Runs the worker against a task whose compactStream call throws a {@link DataSourceException}
+     * Runs the worker against a task whose materialize call throws a {@link MaterializationException}
      * with {@code code}, then asserts that the topic was either not quarantined ({@code expectedMs}
      * is null) or quarantined for approximately {@code expectedMs} milliseconds.
      */
@@ -256,7 +273,8 @@ public class CompactionWorkerTest {
                 .thenReturn(CompletableFuture.completedFuture(task));
         when(compactionTaskProvider.getQuarantinedTopic(topic)).thenReturn(null);
         when(compactTaskManager.tryLockTask(packagedTask.getTaskName())).thenReturn(true);
-        doThrow(new DataSourceException(code, "boom")).when(compactionService).compactStream(task);
+        stubStream(task);
+        doThrow(new MaterializationException(code, "boom")).when(materializationService).materialize(any());
 
         long beforeMs = System.currentTimeMillis();
         Thread thread = new Thread(worker);
@@ -279,4 +297,14 @@ public class CompactionWorkerTest {
                 "quarantine until=" + until + " > afterMs+expected=" + (afterMs + expectedMs));
         }
     }
+    private void stubStream(CompactStreamTask task) {
+        StreamMetadata metadata = mock(StreamMetadata.class);
+        StreamLayout layout = mock(StreamLayout.class);
+        when(streamCatalog.loadStream(any())).thenReturn(CompletableFuture.completedFuture(metadata));
+        when(metadata.layout()).thenReturn(layout);
+        when(layout.logIds()).thenReturn(CompletableFuture.completedFuture(List.of(LogId.of(task.getStreamId()))));
+        when(streamCatalog.resolveMaterialization(any())).thenReturn(
+                CompletableFuture.completedFuture(Optional.of(mock(ResolvedMaterialization.class))));
+    }
+
 }

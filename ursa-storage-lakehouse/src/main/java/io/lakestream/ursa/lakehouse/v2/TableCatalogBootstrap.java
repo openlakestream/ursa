@@ -136,31 +136,29 @@ public final class TableCatalogBootstrap {
                     "unityCatalog*", registered, errors);
         }
 
-        // Legacy-config → default materialization policy bridge: lets an existing deployment switch
-        // to the new pipeline by only enabling the flag, without authoring a new-API policy.
+        // Derive a default materialization policy from the deployment configuration.
         bootstrapDefaultMaterialization(streamCatalog, properties, registered, errors);
 
         return new BootstrapResult(registered, skipped, errors);
     }
 
     /**
-     * When {@code materializationEnabled=true} and a {@code materializationDefaultNamespace} is set,
+     * When a {@code materializationDefaultNamespace} is set,
      * synthesizes a default {@link TableCatalog} from the flat lakehouse config and attaches a
      * default {@link TableMaterializationPolicy} (EXTERNAL, referencing that catalog) to that
      * namespace. Unless an explicit naming template is configured, delivered tables use the source
      * logical name recorded on each stream. This makes catalog-side materialization resolution
-     * succeed so the new {@code maybeMaterialize} pipeline materializes every stream in the namespace
+     * succeed so the materialization pipeline materializes every stream in the namespace
      * without per-stream policy authoring.
      *
-     * <p>No-op when materialization or SDT is disabled. Explicit catalog policies remain independent
+     * <p>No-op when SDT is disabled. Explicit catalog policies remain independent
      * of this configuration default-policy bridge. The flat lakehouse props are placed in the catalog's
      * {@code properties()} so {@code LakehouseWriterFactory.buildConfiguration} re-emits them as
      * the top-level keys the writers read.
      */
     static void bootstrapDefaultMaterialization(StreamCatalog streamCatalog, Properties properties,
                                                 List<String> registered, List<String> errors) {
-        if (!Boolean.parseBoolean(properties.getProperty("materializationEnabled", "false"))
-                || !DynamicConfigs.fromTaskProperties(properties, propertiesToMap(properties)).sdtEnabled()) {
+        if (!DynamicConfigs.fromTaskProperties(properties, propertiesToMap(properties)).sdtEnabled()) {
             return;
         }
         // materializationDefaultNamespace scopes the synthesized default policy to a single namespace.
@@ -257,14 +255,14 @@ public final class TableCatalogBootstrap {
                 "default-" + catalogType.name().toLowerCase(Locale.ROOT));
         Map<String, String> catalogProps = new LinkedHashMap<>();
         for (String key : properties.stringPropertyNames()) {
-            if (key.equals("materializationEnabled") || key.equals("materializationDefaultNamespace")) {
+            if (key.equals("materializationDefaultNamespace")) {
                 continue;
             }
             catalogProps.put(key, properties.getProperty(key));
         }
         // ClickHouse reads its connection (dsn/user/password) from TableCatalog.connection(), whereas
         // the lakehouse writers read flat keys from TableCatalog.properties(). Route the synthesized
-        // props to the map the sink actually consults so the flip-the-flag bridge works for either.
+        // props to the map the sink actually consults so the default-policy bridge works for either.
         // For ClickHouse the connection map must contain ONLY genuine connection settings: the
         // client-v2 JDBC driver rejects unknown properties (ClientMisconfigurationException), so dumping
         // the whole compaction property bag (lakehouseType, metadataStoreUrl, storagePath, …) into

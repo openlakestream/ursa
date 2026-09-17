@@ -10,7 +10,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -36,7 +35,6 @@ import io.lakestream.ursa.materialization.MaterializationException;
 import io.lakestream.ursa.materialization.MaterializationService;
 import io.lakestream.ursa.materialization.MaterializationTask;
 import io.lakestream.ursa.storage.impl.StorageConfig;
-import io.lakestream.ursa.storage.impl.compaction.CompactionService;
 import io.lakestream.ursa.storage.impl.compaction.CompactionTaskProviderV2;
 import java.util.HashSet;
 import java.util.List;
@@ -65,9 +63,6 @@ public class CompactionWorkerMaterializationFailureTest {
     private CompactTaskManager compactTaskManager;
 
     @Mock
-    private CompactionService compactionService;
-
-    @Mock
     private CompactionTaskProviderV2 compactionTaskProvider;
 
     @Mock
@@ -83,19 +78,13 @@ public class CompactionWorkerMaterializationFailureTest {
     private StreamLayout streamLayout;
 
     private CompactionWorker createWorker() {
-        return createWorker(true);
-    }
-
-    private CompactionWorker createWorker(boolean materializationEnabled) {
         StorageConfig config = StorageConfig.builder()
                 .retryableQuarantineInSeconds(10)
                 .nonRetryableQuarantineInSeconds(60)
                 .refreshLocalTaskIntervalInSeconds(5)
-                .materializationEnabled(materializationEnabled)
                 .blackTopicOfCompact(new HashSet<>())
                 .build();
-        return new CompactionWorker(compactTaskManager, compactionService,
-                materializationService, streamCatalog,
+        return new CompactionWorker(compactTaskManager, materializationService, streamCatalog,
                 compactionTaskProvider, config, CompactionMetrics.NOOP);
     }
 
@@ -273,50 +262,6 @@ public class CompactionWorkerMaterializationFailureTest {
         assertFalse(runner.isAlive());
         assertTrue(runner.isInterrupted());
         verify(compactionTaskProvider, never()).quarantineTopic(any(), anyLong());
-    }
-
-    @Test
-    public void interruptedMaterializationDisabledFallbackStopsWorker() throws Exception {
-        CompactionWorker worker = createWorker(false);
-        String topic = "default/legacy-interrupted-partition-0";
-        CompactStreamTask task = new CompactStreamTask();
-        task.setTaskName("legacy-interrupted-task");
-        task.setTopic(topic);
-        task.setStatus(CompactStreamTask.INIT);
-        task.setStartOffset(0L);
-        task.setEndOffset(5L);
-        PackagedCompactStreamTask packagedTask = new PackagedCompactStreamTask();
-        packagedTask.setTaskName("legacy-interrupted-package");
-        packagedTask.setSubTasks(List.of("sub-legacy-interrupted"));
-        when(compactionTaskProvider.getTask()).thenReturn(packagedTask);
-        when(compactTaskManager.getCompactStreamTask("sub-legacy-interrupted"))
-                .thenReturn(CompletableFuture.completedFuture(task));
-        when(compactionTaskProvider.getQuarantinedTopic(topic)).thenReturn(null);
-        when(compactTaskManager.tryLockTask(packagedTask.getTaskName())).thenReturn(true);
-        CountDownLatch fallbackStarted = new CountDownLatch(1);
-        CompletableFuture<Void> pendingFallback = new CompletableFuture<>();
-        doAnswer(invocation -> {
-            fallbackStarted.countDown();
-            try {
-                pendingFallback.get();
-            } catch (InterruptedException interrupted) {
-                // Mirrors the legacy LakehouseCompactionWorker terminal-task deletion path,
-                // which restores the signal before propagating it to this runner.
-                Thread.currentThread().interrupt();
-                throw interrupted;
-            }
-            return null;
-        }).when(compactionService).compactStream(task);
-
-        Thread runner = new Thread(worker);
-        runner.start();
-        assertTrue(fallbackStarted.await(10, TimeUnit.SECONDS));
-        runner.interrupt();
-        runner.join(10_000L);
-
-        assertFalse(runner.isAlive());
-        assertTrue(runner.isInterrupted());
-        verify(materializationService, never()).materialize(any());
     }
 
     private void stubStream(CompactStreamTask task, ResolvedMaterialization resolved) {
