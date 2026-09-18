@@ -19,7 +19,7 @@
   <name>Lakestream :: Ursa Storage :: Tests</name>
 
   <properties>
-    <skipPublishing>true</skipPublishing>
+    <maven.javadoc.skip>true</maven.javadoc.skip>
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
