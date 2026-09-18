@@ -90,24 +90,6 @@ CompletableFuture<Void> future = storage.putAsync(key, value)
 
 **Fix**: Rename `FooTests.java` → `FooTest.java`.
 
-## Maven Authentication Errors
-
-**Error**: `[ERROR] Failed to execute goal ... Could not resolve dependencies ... Return code is: 401`
-
-**Fix**: Add GitHub Packages authentication to `~/.m2/settings.xml`:
-```xml
-<settings>
-  <servers>
-    <server>
-      <id>github</id>
-      <username>YOUR_GITHUB_USERNAME</username>
-      <password>ghp_YOUR_TOKEN_HERE</password>
-    </server>
-  </servers>
-</settings>
-```
-Token needs `read:packages` scope. Generate at: GitHub → Settings → Developer Settings → Personal Access Tokens.
-
 ## SpotBugs Violations
 
 **Error**: `[ERROR] failed with N bugs and 0 errors`

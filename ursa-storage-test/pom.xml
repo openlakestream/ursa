@@ -10,7 +10,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>io.lakestream</groupId>
+    <groupId>org.openlakestream</groupId>
     <artifactId>ursa-storage</artifactId>
     <version>1.0.0</version>
   </parent>
@@ -19,6 +19,7 @@
   <name>Lakestream :: Ursa Storage :: Tests</name>
 
   <properties>
+    <skipPublishing>true</skipPublishing>
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -26,26 +27,26 @@
 
   <dependencies>
     <dependency>
-      <groupId>io.lakestream</groupId>
+      <groupId>org.openlakestream</groupId>
       <artifactId>ursa-storage-core</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>io.lakestream</groupId>
+      <groupId>org.openlakestream</groupId>
       <artifactId>ursa-storage-lakehouse</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>io.lakestream</groupId>
+      <groupId>org.openlakestream</groupId>
       <artifactId>ursa-storage-materialization</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
 
     <dependency>
-      <groupId>io.lakestream</groupId>
+      <groupId>org.openlakestream</groupId>
       <artifactId>ursa-storage-containers</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>

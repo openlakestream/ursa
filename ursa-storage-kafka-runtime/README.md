@@ -3,7 +3,7 @@
 This leaf artifact assembles the Ursa-owned runtime used when Kafka records are stored through
 Lakestream:
 
-- artifact: `io.lakestream:ursa-storage-kafka-runtime`
+- artifact: `org.openlakestream:ursa-storage-kafka-runtime`
 - Lakestream provider: `io.lakestream.ursa.kafka.runtime.UrsaKafkaStreamCatalogProvider`
 - provider discovery: `java.util.ServiceLoader` through `lakestream-api`
 - compacted data reader: `KafkaLakehouseReaderFactory`

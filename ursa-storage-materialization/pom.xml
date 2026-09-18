@@ -10,7 +10,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>io.lakestream</groupId>
+    <groupId>org.openlakestream</groupId>
     <artifactId>ursa-storage</artifactId>
     <version>1.0.0</version>
   </parent>
@@ -26,13 +26,13 @@
 
   <dependencies>
     <dependency>
-      <groupId>io.lakestream</groupId>
+      <groupId>org.openlakestream</groupId>
       <artifactId>lakestream-api</artifactId>
       <version>${project.version}</version>
     </dependency>
 
     <dependency>
-      <groupId>io.lakestream</groupId>
+      <groupId>org.openlakestream</groupId>
       <artifactId>ursa-storage-common</artifactId>
       <version>${project.version}</version>
     </dependency>
@@ -91,7 +91,7 @@
 
     <!-- Core/storage primitives (provided: caller modules supply at runtime) -->
     <dependency>
-      <groupId>io.lakestream</groupId>
+      <groupId>org.openlakestream</groupId>
       <artifactId>ursa-storage-core</artifactId>
       <version>${project.version}</version>
       <scope>provided</scope>

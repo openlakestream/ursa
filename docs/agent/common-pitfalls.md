@@ -85,18 +85,6 @@ package io.lakestream.ursa.storage.impl.newpackage;
 **Problem**: Dependency versions are managed by the root dependency-management section and imported BOMs.
 **Rule**: Never specify versions for dependencies that are BOM-managed. Only specify versions for dependencies not in any BOM (check root `pom.xml` `<dependencyManagement>` section).
 
-### Maven GitHub Packages Authentication
-**Problem**: Build fails with 401/403 on `maven.pkg.github.com`.
-**Fix**: Configure `~/.m2/settings.xml` with a GitHub token:
-```xml
-<server>
-  <id>github</id>
-  <username>YOUR_GITHUB_USERNAME</username>
-  <password>YOUR_GITHUB_TOKEN</password>
-</server>
-```
-Token needs `read:packages` scope.
-
 ## Lakehouse-Specific Pitfalls
 
 ### v2 vs v1 Code Paths
