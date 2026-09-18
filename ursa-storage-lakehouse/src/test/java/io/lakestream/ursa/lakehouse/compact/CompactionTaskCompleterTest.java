@@ -4,7 +4,7 @@
  */
 package io.lakestream.ursa.lakehouse.compact;
 
-import static io.lakestream.ursa.lakehouse.v2.AbstractLakehouseWriter.BATCH_MESSAGE_COUNT;
+import static io.lakestream.ursa.lakehouse.AbstractLakehouseWriter.BATCH_MESSAGE_COUNT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -17,10 +17,10 @@ import io.lakestream.ursa.compaction.common.CompactedObjectFileIndex;
 import io.lakestream.ursa.compaction.task.CompactStreamTask;
 import io.lakestream.ursa.compaction.task.CompactStreamTaskSerde;
 import io.lakestream.ursa.exception.ExceptionWithCode;
+import io.lakestream.ursa.lakehouse.IWriteResult;
 import io.lakestream.ursa.lakehouse.iceberg.IcebergCompactStreamTask;
-import io.lakestream.ursa.lakehouse.v2.IWriteResult;
-import io.lakestream.ursa.lakehouse.v2.iceberg.IcebergWriteResult;
-import io.lakestream.ursa.lakehouse.v2.io.parquet.ParquetWriteResult;
+import io.lakestream.ursa.lakehouse.iceberg.IcebergWriteResult;
+import io.lakestream.ursa.lakehouse.io.parquet.ParquetWriteResult;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;

@@ -7,7 +7,7 @@ package io.lakestream.ursa.test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lakestream.api.EntryHeader;
-import io.lakestream.ursa.lakehouse.v2.serde.kafka.parquet.KafkaEntryBatchedRawDataToParquetEncoder;
+import io.lakestream.ursa.lakehouse.serde.kafka.parquet.KafkaEntryBatchedRawDataToParquetEncoder;
 import io.lakestream.ursa.materialization.serde.GenericEntry;
 import io.lakestream.ursa.materialization.serde.MaterializationRecord;
 import io.lakestream.ursa.materialization.serde.ResultConsumer;

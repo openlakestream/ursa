@@ -66,9 +66,9 @@ partition-in-policy, no backfill, no pause).
    in operator-side `lakehouse.properties`, not on the stream itself. Users
    could not introspect from the lakestream API "is this stream materialized
    to a table, and where?"
-4. **Schema conversion + evolution** were already abstract in v2
+4. **Schema conversion + evolution** were already abstract in the lakehouse implementation
    (`SchemaService`, `SchemaEvolutionManager`, `TableSchemaService<V, R>`) but
-   trapped in `io.lakestream.ursa.lakehouse.v2.serde` with no public
+   trapped in `io.lakestream.ursa.lakehouse.serde` with no public
    contract; we lost the leverage by not exposing them as a framework.
 
 ## Goals
@@ -89,8 +89,8 @@ partition-in-policy, no backfill, no pause).
 - Ship a `ClickHouseTableMaterializer` as proof of extensibility: batched
   INSERT into a ClickHouse `ReplacingMergeTree` with `ALTER TABLE` schema
   evolution and per-backend evolution policy gating.
-- Keep `compactionServiceClass` working as a deprecated alias for one
-  release; introduce `materializationServiceClass` as the new key.
+- Use `materializationServiceClass` as the sole service configuration key;
+  remove `compactionServiceClass` and the legacy compaction dispatch path.
 - Document the **categorization** of settings: `TableCatalog` (connection,
   type, tuning) is registered once at the cluster; `TableMaterializationPolicy`
   is the same record applied at two layers (active namespace + override
@@ -106,8 +106,8 @@ partition-in-policy, no backfill, no pause).
   from today's compaction model.
 - New source-format support. Kafka source decoding stays in its integration boundary.
 - Cross-sink transactions. Each `TableMaterializer.commit()` is independent.
-- Migrating legacy v1 lakehouse code paths (root `io.lakestream.ursa.lakehouse`
-  packages). Touch only `v2/`.
+- Restoring removed legacy v1 compaction paths. Lakehouse code uses
+  `io.lakestream.ursa.lakehouse` and its functional subpackages.
 - A user-visible REST / Admin API for managing the policy. Phase 1 exposes the
   API only at the `StreamCatalog` SDK level; integration-specific admin surfaces
   are follow-up work.
@@ -225,7 +225,7 @@ policy.
 
 Generic serde (`SchemaService`, `SchemaEvolutionManager`, `EntryEncoder`,
 `EntryEncoderContext`, `EntrySerdeFactory`, plus Kafka source decoding)
-moved out of `io.lakestream.ursa.lakehouse.v2.serde` and into
+moved out of `io.lakestream.ursa.lakehouse.serde` and into
 `io.lakestream.ursa.materialization.serde`. Target-format encoders
 (Delta/Iceberg) stay in `ursa-storage-lakehouse`.
 
@@ -340,9 +340,11 @@ The unused `TableMetadata` record was **deleted**.
 - New key: `compactionStorageBindingsClass` — class name of the
   `CompactionStorageBindings` impl. Default:
   `io.lakestream.ursa.lakehouse.compact.LakehouseCompactionStorageBindings`.
-- Deprecated alias: `compactionServiceClass` — honoured for one release with
-  a `WARN` log on use. When only `compactionServiceClass` is set, the
-  scheduler reuses its value as `materializationServiceClass`.
+- Removed key: `compactionServiceClass`. There is no alias resolution or
+  deprecation-warning compatibility window. The scheduler reads only
+  `materializationServiceClass`; if it is unset, the default above is used.
+  Custom services must implement `MaterializationService` and be configured
+  explicitly through `materializationServiceClass`.
 - Existing `iceberg.catalog.<n>.<k>`, `delta.catalog.<n>.<k>`,
   `unityCatalog*` keys keep their current semantics. On startup, the
   scheduler translates each into a `TableCatalog` record (type-inferred from
@@ -422,15 +424,20 @@ No new CLI surface in this LIP. Policy management goes through the
 
 ## Backward & Forward Compatibility
 
+Removal of `compactionServiceClass` is an intentional configuration compatibility
+break and supersedes the earlier one-release alias contract. All compaction tasks
+use the materialization SPI; the current build has no legacy dispatch fallback.
+
 ### Revert
 
 To revert from a deployment running this LIP back to the prior version:
 
 1. Stop the compaction tier (`CompactionMain`).
 2. Roll deployment images back to the pre-LIP build.
-3. The catalog-stored materialization policies remain in Oxia but are ignored
-   by the rolled-back code; lakehouse-only compaction resumes via the
-   existing `compactionServiceClass` path.
+3. Restore the configuration required by the pre-LIP build, including its
+   `compactionServiceClass` setting where applicable. That path exists only in
+   the older build. The catalog-stored materialization policies remain in Oxia
+   but are ignored by the rolled-back code.
 4. Streams created with the new `createStream(..., materialization)` overload
    continue to function: the synthesised topic-properties shim ensures the
    old code can still discover their lakehouse target.

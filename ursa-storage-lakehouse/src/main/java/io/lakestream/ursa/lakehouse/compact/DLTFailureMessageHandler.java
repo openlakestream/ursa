@@ -5,8 +5,8 @@
 package io.lakestream.ursa.lakehouse.compact;
 
 import io.lakestream.ursa.exception.ExceptionWithCode;
+import io.lakestream.ursa.lakehouse.LakehouseRecordWriter;
 import io.lakestream.ursa.lakehouse.utils.TopicName;
-import io.lakestream.ursa.lakehouse.v2.LakehouseRecordWriter;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;

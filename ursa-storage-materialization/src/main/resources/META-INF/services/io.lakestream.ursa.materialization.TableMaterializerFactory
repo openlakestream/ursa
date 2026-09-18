@@ -1,9 +1,9 @@
 # Sink modules register their TableMaterializerFactory implementations here.
 # Lakehouse (T8) registers three factories — one per supported TableCatalogType — in
 # ursa-storage-lakehouse/src/main/resources/META-INF/services/...TableMaterializerFactory:
-#   io.lakestream.ursa.lakehouse.v2.LakehouseIcebergTableMaterializerFactory
-#   io.lakestream.ursa.lakehouse.v2.LakehouseDeltaTableMaterializerFactory
-#   io.lakestream.ursa.lakehouse.v2.LakehouseDeltaUcTableMaterializerFactory
+#   io.lakestream.ursa.lakehouse.LakehouseIcebergTableMaterializerFactory
+#   io.lakestream.ursa.lakehouse.LakehouseDeltaTableMaterializerFactory
+#   io.lakestream.ursa.lakehouse.LakehouseDeltaUcTableMaterializerFactory
 # ClickHouse (T11) will register io.lakestream.ursa.clickhouse.ClickHouseTableMaterializerFactory
 # in its own ursa-storage-clickhouse/.../META-INF/services file.
 #

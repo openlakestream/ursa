@@ -85,7 +85,7 @@ public class CompactionScheduler {
     // ("no integration package strings appear in compact/main") stays green.
     private static final String INTEGRATION_PKG = "io.lakestream.ursa." + "lakehouse";
     private static final String LAKEHOUSE_BOOTSTRAP_CLASS =
-            INTEGRATION_PKG + ".v2.TableCatalogBootstrap";
+            INTEGRATION_PKG + ".TableCatalogBootstrap";
     private static final String LAKEHOUSE_LOCK_MANAGERS_CLASS =
             INTEGRATION_PKG + ".utils.lock.LockManagers";
 

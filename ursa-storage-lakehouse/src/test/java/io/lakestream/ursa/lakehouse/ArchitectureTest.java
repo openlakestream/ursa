@@ -17,7 +17,7 @@ import com.tngtech.archunit.lang.ArchRule;
  * Legacy v1 code has known cross-references that are not enforced here.
  */
 @AnalyzeClasses(
-        packages = "io.lakestream.ursa.lakehouse.v2",
+        packages = "io.lakestream.ursa.lakehouse",
         importOptions = ImportOption.DoNotIncludeTests.class)
 class ArchitectureTest {
 

@@ -5,8 +5,8 @@
 package io.lakestream.ursa.lakehouse.reader;
 
 import io.lakestream.ursa.lakehouse.LakehouseConfiguration;
-import io.lakestream.ursa.lakehouse.LakehouseKafkaReaderV2;
-import io.lakestream.ursa.lakehouse.v2.LakehouseFactory;
+import io.lakestream.ursa.lakehouse.LakehouseFactory;
+import io.lakestream.ursa.lakehouse.LakehouseKafkaReader;
 import io.lakestream.ursa.lakestream.reader.CompactedObjectReader;
 import io.lakestream.ursa.lakestream.reader.CompactedObjectReaderFactory;
 import io.lakestream.ursa.materialization.serde.kafka.KafkaSchemaService;
@@ -30,7 +30,7 @@ public class LakehouseReaderFactory implements CompactedObjectReaderFactory {
 
     @Override
     public CompactedObjectReader open(String logName) {
-        return new LakehouseKafkaReaderV2(logName, lakehouseFactory);
+        return new LakehouseKafkaReader(logName, lakehouseFactory);
     }
 
     @Override

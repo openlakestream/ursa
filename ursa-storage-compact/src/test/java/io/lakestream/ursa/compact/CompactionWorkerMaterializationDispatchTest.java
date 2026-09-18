@@ -24,7 +24,7 @@ import io.lakestream.ursa.compaction.CompactTaskManager;
 import io.lakestream.ursa.compaction.metrics.CompactionMetrics;
 import io.lakestream.ursa.compaction.task.CompactStreamTask;
 import io.lakestream.ursa.compaction.task.PackagedCompactStreamTask;
-import io.lakestream.ursa.lakehouse.v2.TableCatalogBootstrap;
+import io.lakestream.ursa.lakehouse.TableCatalogBootstrap;
 import io.lakestream.ursa.materialization.MaterializationService;
 import io.lakestream.ursa.materialization.MaterializationTask;
 import io.lakestream.ursa.storage.impl.StorageConfig;

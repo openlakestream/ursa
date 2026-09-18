@@ -176,6 +176,11 @@ Operator-side keys read on `CompactionScheduler` startup:
 | `iceberg.catalog.<name>.*` / `delta.catalog.<name>.*` / `unityCatalog*` | _(none)_ | Per-catalog connection settings. Translated into `TableCatalog` records on startup by `TableCatalogBootstrap`. |
 | `clickhouse.catalog.<name>.dsn` / `…user` / `…password-ref` | _(none)_ | ClickHouse catalog connection bootstrap. |
 
+`compactionServiceClass` has been removed and is not a compatibility alias.
+Configure custom services through `materializationServiceClass`; they must implement
+`MaterializationService`. If this key is unset, the default service above is used,
+even when the removed key is present.
+
 See [ursa-storage-compact/CLAUDE.md](../../ursa-storage-compact/CLAUDE.md#configuration-keys-operator-surface)
 for the full table.
 

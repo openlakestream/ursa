@@ -4,19 +4,19 @@
  */
 package io.lakestream.ursa.lakehouse.compact;
 
-import static io.lakestream.ursa.lakehouse.v2.AbstractLakehouseWriter.BATCH_MESSAGE_COUNT;
+import static io.lakestream.ursa.lakehouse.AbstractLakehouseWriter.BATCH_MESSAGE_COUNT;
 
 import io.lakestream.ursa.compaction.CompactTaskManager;
 import io.lakestream.ursa.compaction.task.CompactStreamTask;
 import io.lakestream.ursa.compaction.task.CompactedObjectWriteResult;
 import io.lakestream.ursa.exception.ExceptionCode;
 import io.lakestream.ursa.exception.ExceptionWithCode;
+import io.lakestream.ursa.lakehouse.IWriteResult;
 import io.lakestream.ursa.lakehouse.delta.DeltaCompactStreamTask;
+import io.lakestream.ursa.lakehouse.delta.DeltaWriteResult;
 import io.lakestream.ursa.lakehouse.iceberg.IcebergCompactStreamTask;
-import io.lakestream.ursa.lakehouse.v2.IWriteResult;
-import io.lakestream.ursa.lakehouse.v2.delta.DeltaWriteResult;
-import io.lakestream.ursa.lakehouse.v2.iceberg.IcebergWriteResult;
-import io.lakestream.ursa.lakehouse.v2.io.parquet.ParquetWriteResult;
+import io.lakestream.ursa.lakehouse.iceberg.IcebergWriteResult;
+import io.lakestream.ursa.lakehouse.io.parquet.ParquetWriteResult;
 import io.lakestream.ursa.lakehouse.writer.ParquetFileStat;
 import java.util.Collections;
 import java.util.List;

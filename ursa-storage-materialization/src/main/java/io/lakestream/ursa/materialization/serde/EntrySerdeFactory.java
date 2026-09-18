@@ -50,7 +50,7 @@ public class EntrySerdeFactory {
 
     private static void bootstrapKnownRegistries() {
         String[] candidates = {
-            "io.lakestream.ursa.lakehouse.v2.serde.LakehouseSerdeRegistry",
+            "io.lakestream.ursa.lakehouse.serde.LakehouseSerdeRegistry",
             "io.lakestream.ursa.clickhouse.serde.ClickHouseSerdeRegistry"
             // Other integrations add their registry FQCN here.
         };

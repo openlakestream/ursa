@@ -100,8 +100,8 @@ Token needs `read:packages` scope.
 ## Lakehouse-Specific Pitfalls
 
 ### Lakehouse Code Paths
-The active readers, writers, and materializers live in `io.lakestream.ursa.lakehouse.v2.*`.
-Root packages still contain shared compaction, catalog, Iceberg, and Delta code used by this path.
+The active readers, writers, and materializers live in `io.lakestream.ursa.lakehouse.*`.
+Functional subpackages contain the shared compaction, catalog, Iceberg, and Delta code.
 The historical v1 compaction format and its reader fallback have been removed.
 
 ### Vendor Code

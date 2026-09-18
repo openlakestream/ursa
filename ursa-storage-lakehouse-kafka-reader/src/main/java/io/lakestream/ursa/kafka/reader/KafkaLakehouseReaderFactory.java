@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Kafka-only lakehouse reader factory.
  *
- * <p>This factory deliberately supports the Kafka integration's V2
+ * <p>This factory deliberately supports the Kafka integration's
  * {@code KAFKA_BATCHED_RAW_PARQUET} files, which are addressed by a
  * {@code CompactedObjectFileIndex} in each Lakestream entry index. The implementation is isolated from the generic
  * writer and mixed-source materialization classes in {@code ursa-storage-lakehouse}.
