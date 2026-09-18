@@ -2689,6 +2689,10 @@
               <publishingServerId>central</publishingServerId>
               <autoPublish>true</autoPublish>
               <waitUntil>published</waitUntil>
+              <excludeArtifacts>
+                <artifact>ursa-storage-tools</artifact>
+                <artifact>ursa-storage-test</artifact>
+              </excludeArtifacts>
             </configuration>
           </plugin>
         </plugins>
