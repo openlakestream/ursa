@@ -10,7 +10,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>io.lakestream</groupId>
+    <groupId>org.openlakestream</groupId>
     <artifactId>ursa-storage</artifactId>
     <version>1.0.0</version>
   </parent>
@@ -20,6 +20,7 @@
 
 
   <properties>
+    <skipPublishing>true</skipPublishing>
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -102,7 +103,7 @@
       <artifactId>opentelemetry-runtime-telemetry-java17</artifactId>
     </dependency>
     <dependency>
-      <groupId>io.lakestream</groupId>
+      <groupId>org.openlakestream</groupId>
       <artifactId>ursa-storage-core</artifactId>
       <version>${project.version}</version>
       <exclusions>
@@ -113,12 +114,12 @@
       </exclusions>
     </dependency>
       <dependency>
-          <groupId>io.lakestream</groupId>
+          <groupId>org.openlakestream</groupId>
           <artifactId>ursa-storage-lakehouse</artifactId>
           <version>${project.version}</version>
       </dependency>
       <dependency>
-          <groupId>io.lakestream</groupId>
+          <groupId>org.openlakestream</groupId>
           <artifactId>ursa-storage-compact</artifactId>
           <version>${project.version}</version>
       </dependency>
