@@ -286,10 +286,6 @@ public final class ClickHouseTableMaterializer implements TableMaterializer<Gene
 
     @Override
     public CommitResult commit() {
-        if (closed.get()) {
-            throw new MaterializationException(ExceptionCode.INTERNAL_ERROR,
-                    "commit() after close() is not allowed");
-        }
         if (committed.get()) {
             // Idempotent: T11 chooses to return a zero-record CommitResult so the framework's
             // retry path is a no-op rather than double-flushing the (already empty) buffer.
@@ -297,10 +293,17 @@ public final class ClickHouseTableMaterializer implements TableMaterializer<Gene
                     "clickhouse.engine", engine.name(),
                     "clickhouse.idempotent", "true"));
         }
+        if (closed.get()) {
+            throw new MaterializationException(ExceptionCode.INTERNAL_ERROR,
+                    "commit() after close() is not allowed");
+        }
         if (!buffer.isEmpty()) {
             flush();
         }
         committed.set(true);
+        // The framework drops a materializer after a successful commit without calling close(),
+        // so release the per-task connection here.
+        close();
         return new CommitResult(totalRecords, totalBytes, Map.of(
                 "clickhouse.rows-inserted", Long.toString(totalRecords),
                 "clickhouse.engine", engine.name(),
