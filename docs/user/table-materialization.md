@@ -50,7 +50,7 @@ import java.util.Optional;
 TableCatalog ch = new TableCatalog(
         "clickhouse-prod",
         TableCatalogType.CLICKHOUSE,
-        Map.of("dsn", "clickhouse://host:9000/", "user", "ursa"),
+        Map.of("dsn", "jdbc:ch://host:8123/default", "user", "ursa"),
         Map.of());
 streamCatalog.registerTableCatalog(ch).join();
 
@@ -116,6 +116,20 @@ streamCatalog.setStreamMaterialization(
 > overrides only need the fields that differ from the namespace policy;
 > every other field uses `Optional.empty()` to inherit.
 
+> **What Ursa 1.0 applies.** Policy resolution uses `catalogRef`, `tableNaming` and
+> `tableIdentifier`, and honors a stream-level `enabled = false`. A namespace-level `enabled` is
+> ignored, and `connectionOverrides` are taken from the stream-level policy only. The built-in
+> materializers also use these fields:
+>
+> - Iceberg and Delta: `connectionOverrides`. They take their base schema version from the
+>   `clusterBaseSchemaVersion` task property, not from the policy.
+> - ClickHouse: `primaryKey`, `framework.writeMode`, `framework.commit.batchSize` and
+>   `connectionOverrides`
+>
+> The remaining fields are stored with the policy but not applied yet: `evolution`,
+> `baseSchemaVersion`, `table` (partitioning, sort order, compression), `framework.startPosition`,
+> `framework.paused`, `framework.errorHandling`, and the commit retry settings.
+
 ## Table Naming
 
 A stream-level explicit `tableIdentifier` has highest priority. Otherwise an explicitly configured
@@ -177,7 +191,7 @@ Operator-side keys read on `CompactionScheduler` startup:
 | `iceberg.catalog.<name>.*` / `delta.catalog.<name>.*` / `unityCatalog*` | _(none)_ | Per-catalog connection settings. Translated into `TableCatalog` records on startup by `TableCatalogBootstrap`. |
 | `clickhouse.catalog.<name>.dsn` / `…user` / `…password-ref` | _(none)_ | ClickHouse catalog connection bootstrap. |
 
-See [ursa-storage-compact/CLAUDE.md](../../ursa-storage-compact/CLAUDE.md#configuration-keys-operator-surface)
+See [ursa-storage-compact/AGENTS.md](../../ursa-storage-compact/AGENTS.md#configuration-keys-operator-surface)
 for the full table.
 
 ## Internal compaction
@@ -195,24 +209,34 @@ produce multiple files in one compaction task. No configuration switch is requir
 
 ## Supported Sinks
 
-| Backend | Type Constant | Evolution Policy |
+| Backend | Type Constant | Declared Evolution Policy |
 |---------|---------------|------------------|
 | Iceberg | `TableCatalogType.ICEBERG` | `EvolutionPolicy.forIceberg()` — addColumn, addNullableColumn, widenType |
 | Delta Lake | `TableCatalogType.DELTA` | `EvolutionPolicy.forDelta()` — same as Iceberg |
 | Delta on Unity Catalog | `TableCatalogType.DELTA_UC` | `EvolutionPolicy.forDelta()` |
 | ClickHouse | `TableCatalogType.CLICKHOUSE` | `EvolutionPolicy.forClickHouse()` — addColumn, addNullableColumn only |
 
-Adding a new sink requires implementing the
-`io.lakestream.ursa.materialization.TableMaterializerFactory` SPI and
-registering it under
-`META-INF/services/io.lakestream.ursa.materialization.TableMaterializerFactory`.
-See `ursa-storage-clickhouse` for a worked example.
+Each materializer declares an evolution policy. Ursa 1.0 doesn't use it to accept or reject schema
+changes yet. Each materializer evolves its own table as the source schema changes.
+
+To add a materializer for another destination, see
+[Write a materializer](../developer/materializer-guide.md).
 
 ## Troubleshooting
 
-- **`MaterializationException(MESSAGE_SCHEMA_INCOMPATIBLE)`** — schema
-  evolution request was outside the sink's allowed policy. Check
-  `EvolutionPolicy` and the stream's source schema (`StreamMetadata.schema()`).
+- **`MESSAGE_SCHEMA_INCOMPATIBLE`** — a record's schema can't be applied to
+  the destination table. What happens next depends on the materializer:
+  - ClickHouse fails the task with this code when a column's type would change.
+    It only ever adds columns.
+  - Iceberg and Delta raise it when a record's schema version hasn't been
+    applied to the table and the table is already at a newer version, or when
+    the version is below the base schema version before the table exists. The
+    record goes to the dead-letter table, and materialization continues. If
+    Delta's dead-letter table is disabled (`delta.dlt.enabled=false`), the task
+    fails instead.
+
+  Check the source schema's version history in the schema registry, and the
+  `clusterBaseSchemaVersion` setting.
 - **`MaterializationException` with `LAKEHOUSE_*` codes** — sink-side commit
   failure. Check the underlying catalog (Iceberg/Delta/Unity) status.
 - **No materialization happening** — verify
@@ -220,21 +244,27 @@ See `ursa-storage-clickhouse` for a worked example.
   `catalogRef` doesn't resolve to a registered `TableCatalog`; stream policy set
   `enabled = false`.
 
-Useful metrics for active debugging (all under the `ursa.materialization.*`
-namespace):
+Ursa 1.0 doesn't emit materialization-specific metrics. To debug, use the
+compactor logs:
 
-- `ursa.materialization.state` (gauge) — per-stream materialization state.
-  `0=PENDING`, `1=RUNNING`, `2=DEGRADED`, `3=SUSPENDED`, `4=PAUSED`.
-- `ursa.materialization.records.written` (counter) — should increase
-  whenever the stream has fresh WAL data.
-- `ursa.materialization.schema.evolution.rejected` (counter) — non-zero
-  means the producer is sending a schema the sink refuses.
-- `ursa.materialization.commit.retries{outcome="exhausted"}` (counter) —
-  non-zero means commits are failing past the configured retry limit.
+- `Materializing [start,end) of stream … into catalog …` when a task starts.
+- `Committed task … in MaterializationService` when its materializers have
+  committed. For Iceberg and Delta, the table commit itself happens afterwards,
+  in a separate group-commit step.
+- `During compact error` when a task fails, with the exception.
+- `Quarantine topic … (code=…)` when a failed task is held back before its
+  next retry.
+
+The `ursa.storage.compact.failed.task.count` counter counts failed tasks, except
+transient source errors and tasks that are deleted as terminal. The compactor
+exports metrics through OpenTelemetry only if you choose an exporter, for
+example with `-Dotel.metrics.exporter=otlp` and the exporter on the classpath.
+The default is `none`.
 
 ## See Also
 
 - [LIP-161: Table Materialization Framework](../lip/LIP-161-Table-Materialization-Framework.md)
-- [Compaction Orchestration Flow](../../ursa-storage-compact/CLAUDE.md#orchestration-flow-t10)
-- [ClickHouse sink module README](../../ursa-storage-clickhouse/CLAUDE.md)
-- [Lakehouse materializer adapter notes](../../ursa-storage-lakehouse/CLAUDE.md)
+- [Write a materializer](../developer/materializer-guide.md)
+- [Compaction Orchestration Flow](../../ursa-storage-compact/AGENTS.md#orchestration-flow-t10)
+- [ClickHouse module notes](../../ursa-storage-clickhouse/AGENTS.md)
+- [Lakehouse materializer adapter notes](../../ursa-storage-lakehouse/AGENTS.md)

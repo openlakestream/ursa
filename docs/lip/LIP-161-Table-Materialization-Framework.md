@@ -3,7 +3,7 @@
 - *Author(s)*: Sijie Guo (and Claude Code automation, T1-T15)
 - *Proposal time*: 2026-05-21
 - *Implemented*: YES
-- *Released*: NO
+- *Released*: 1.0.0
 - *Repository*: https://github.com/lakestream-io/ursa-storage
 - *Discussion Link*:
 
@@ -575,3 +575,21 @@ Two follow-ups are tracked separately:
    on the metrics surface and prevent the framework from skipping
    schema-evolution probes when the writer already knows the resolved
    schema.
+
+## Status notes (1.0.0)
+
+This LIP is kept as the design record. Ursa 1.0.0 differs from it in these places:
+
+| This LIP describes | Ursa 1.0.0 |
+|---|---|
+| The worker writes the compacted object, then calls the `MaterializationService` for the external table. | With `materializationEnabled=true`, the worker sends each task through the `MaterializationService`, which writes the internal compacted objects and the external table in one read pass. With the default, `materializationEnabled=false`, the worker uses the older compaction path, which still writes Iceberg and Delta tables from task properties when SDT is enabled (`clusterSdtEnabled`), but never resolves catalog policies or calls `TableMaterializer` factories. |
+| The factory is resolved by `policy.catalogRef`. | `catalogRef` resolves to a registered `TableCatalog`, and the factory is chosen by that catalog's `type()`. |
+| The service applies each sink's `EvolutionPolicy`. | `supportedEvolutions()` isn't consulted. Each materializer evolves its own table, through `SchemaEvolutionManager` or its own logic. |
+| Policy fields for error handling, commit retries, start position and pausing. | Stored with the policy, but not applied yet. |
+| Table catalogs are stored under the Oxia keyspace `tablecatalogs/`. | The keyspace is `_tablecatalogs/`. |
+| A CI grep gate keeps `ursa-storage-compact` free of lakehouse imports. | `ursa-storage-compact` has no lakehouse imports, but no CI check enforces that yet. |
+| ClickHouse issues one batched `INSERT` per task at commit, ordered by `(primaryKey, ingested_at)`. | ClickHouse inserts every `batchSize` rows during `write()`, and orders by the primary key only. No ingestion-time column is created. |
+| ClickHouse translates source schemas through an Avro intermediate (`AvroToClickHouseSchema`). | Column types are inferred from the decoded rows. |
+| Materialization metrics and dead-letter handling. | Framework-level error handling (`errorHandling`, `dlqTopic`) and metrics aren't implemented: the compactor wires no-op metrics and a no-op failure handler. The Iceberg and Delta writers keep their own dead-letter table. |
+
+To write a materializer against 1.0.0, see [Write a materializer](../developer/materializer-guide.md).

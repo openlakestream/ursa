@@ -67,7 +67,7 @@ See [Build & Run Locally](docs/developer/build.md) for complete build and local 
 
 ## Development
 
-See [Contributing Guide](docs/developer/contribute.md) for information on how to contribute to the project.
+See [Contributing Guide](CONTRIBUTING.md) for information on how to contribute to the project.
 
 ## Support
 
