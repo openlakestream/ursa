@@ -57,8 +57,10 @@ read them.
 
 ## Build and test
 
-You need Java 17 or later, Maven 3.6.3 or later, and Docker. Many tests, tagged or not, start the
-services they need, such as Oxia or an object-storage emulator, in containers through Testcontainers.
+You need JDK 17, Maven 3.6.3 or later, and Docker. Use JDK 17, as CI does: JDK 25 can't compile the
+project yet, because of the Lombok version the build uses. If `mvn -version` shows a different JDK,
+set `JAVA_HOME`. Many tests, tagged or not, start the services they need, such as Oxia or an
+object-storage emulator, in containers through Testcontainers.
 
 ```bash
 git clone https://github.com/lakestream-io/ursa.git

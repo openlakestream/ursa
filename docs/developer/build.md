@@ -2,7 +2,8 @@
 
 ## Prerequisites
 
-- Java 17+
+- JDK 17. JDK 25 can't compile the project yet; set `JAVA_HOME` if `mvn -version` shows
+  another JDK.
 - Maven 3.6.3+
 - Docker for integration tests
 

@@ -98,6 +98,9 @@ The compaction orchestrator reads these implementation-class properties:
 
 ## Commands
 
+Build with JDK 17. JDK 25 can't compile the project yet (the build's Lombok version doesn't support
+it), so if `mvn -version` shows another JDK, set `JAVA_HOME` to a JDK 17.
+
 ```bash
 # Build everything, skipping tests
 mvn -B -ntp clean install -DskipTests

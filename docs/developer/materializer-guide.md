@@ -734,9 +734,8 @@ Testcontainers tests.
 | `ClickHouseConnectionFactory` | Merges catalog settings with policy overrides, and passes on only the keys the driver accepts |
 | `ClickHouseTableEngine` | Maps the policy's write mode and primary key to a table engine |
 
-One thing not to copy: `ClickHouseTableMaterializer.commit()` doesn't close the JDBC connection that
-the factory opens for each task, and the compactor doesn't call `close()` after a successful task.
-Release your resources in `commit()`, as described in [The contract](#the-contract).
+Whatever you copy, keep one rule from [The contract](#the-contract): the compactor doesn't call
+`close()` after a successful task, so release your resources in `commit()`.
 
 The Iceberg and Delta materializers are a less useful template. Their commits go through a group
 commit step that is built into the compactor for those two formats. A new file-based format has
