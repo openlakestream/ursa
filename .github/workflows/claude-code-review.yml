@@ -30,14 +30,18 @@ jobs:
 
       - name: Run Claude Code Review
         id: claude-review
-        uses: anthropics/claude-code-action@beta
+        uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
-          model: "claude-opus-5"
+          # Keep a single tracking comment on the pull request, updated as the review runs.
+          track_progress: true
+          use_sticky_comment: true
 
-          direct_prompt: |
-            Read CLAUDE.md at the repo root for project context and conventions.
+          # Claude Code loads the project instructions in CLAUDE.md on its own.
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
 
             Review this pull request focusing on:
             1. Code quality, Java 17 best practices, and Lakestream coding standards (see CLAUDE.md)
@@ -48,11 +52,6 @@ jobs:
 
             Be constructive — this is critical distributed-storage infrastructure.
 
-          use_sticky_comment: true
-
-          allowed_tools: |
-            Bash(mvn *),
-            Bash(docker compose *),
-            Bash(git *),
-            Bash(find *),
-            Bash(wc *)
+          claude_args: |
+            --model claude-opus-5
+            --allowedTools "Bash(mvn:*),Bash(git:*),Bash(find:*),Bash(wc:*)"

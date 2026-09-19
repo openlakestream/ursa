@@ -32,27 +32,22 @@ jobs:
 
       - name: Run Claude Code
         id: claude
-        uses: anthropics/claude-code-action@beta
+        uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
           additional_permissions: |
             actions: read
 
-          model: "claude-opus-5"
+          # Claude Code loads the project instructions in CLAUDE.md on its own.
+          claude_args: |
+            --model claude-opus-5
+            --allowedTools "Bash(mvn:*),Bash(docker ps:*),Bash(docker logs:*),Bash(git:*),Bash(find:*),Bash(wc:*)"
 
-          allowed_tools: |
-            Bash(mvn *),
-            Bash(docker compose *),
-            Bash(docker ps *),
-            Bash(docker logs *),
-            Bash(git *),
-            Bash(find *),
-            Bash(wc *)
-
-          custom_instructions: |
-            Read CLAUDE.md at the repo root for all project context, conventions, and build commands.
-
-          claude_env: |
-            JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
-            MAVEN_OPTS: -Xmx1500m
+          settings: |
+            {
+              "env": {
+                "JAVA_HOME": "/usr/lib/jvm/java-17-openjdk-amd64",
+                "MAVEN_OPTS": "-Xmx1500m"
+              }
+            }
