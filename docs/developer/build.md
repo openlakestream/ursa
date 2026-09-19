@@ -5,19 +5,8 @@
 - Java 17+
 - Maven 3.6.3+
 - Docker for integration tests
-- A GitHub token with `read:packages` when private packages are required
 
-Configure the Maven `github` server in `~/.m2/settings.xml` if needed:
-
-```xml
-<servers>
-  <server>
-    <id>github</id>
-    <username>YOUR_GITHUB_ACCOUNT</username>
-    <password>YOUR_GITHUB_TOKEN</password>
-  </server>
-</servers>
-```
+All dependencies come from public Maven repositories, so no credentials are needed.
 
 ## Build
 
@@ -47,7 +36,7 @@ Protocol-facing services are not required to run core unit tests.
 ## Tests
 
 ```bash
-# Unit tests
+# Every test in every module (needs Docker)
 mvn -B -ntp test
 
 # One module
