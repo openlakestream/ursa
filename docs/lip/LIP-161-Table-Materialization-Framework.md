@@ -1,10 +1,10 @@
 # LIP-161: Table Materialization Framework
 
-- *Author(s)*: Sijie Guo (and Claude Code automation, T1-T15)
+- *Author(s)*: Sijie Guo (and Claude Code automation)
 - *Proposal time*: 2026-05-21
 - *Implemented*: YES
 - *Released*: 1.0.0
-- *Repository*: https://github.com/lakestream-io/ursa-storage
+- *Repository*: https://github.com/lakestream-io/ursa
 - *Discussion Link*:
 
 ## TL;DR
@@ -32,8 +32,8 @@ Compacted Objects so that reads can be fast. See the
    storage. This is what `CompactedObjectReader` reads back via
    `UnifiedStreamReader`. This is the stream's own data; not going away.
 2. **External materialization** — the same WAL records → an external
-   Delta/Iceberg table. This is what users actually mean by "Tableflow-style"
-   behaviour: turn my topic into a queryable table.
+   Delta/Iceberg table. This is what users usually mean by stream-to-table:
+   turn my topic into a queryable table.
 
 Before this LIP, the two concerns were tangled inside `ursa-storage-compact`
 (orchestration) and `ursa-storage-lakehouse` (writers). Adding a non-lakehouse
@@ -47,15 +47,15 @@ lakehouse-specific in any meaningful way.
 Before this LIP, lakestream-api had no concept of "where this stream is
 materialised to".
 
-**Confluent Tableflow** is the reference user-experience for stream-to-table —
-enable on a topic, get an Iceberg/Delta table. We borrowed several design
-decisions (multi-format target, retention dual-bound, `SUSPEND`/`SKIP`/`LOG`
-error modes) and explicitly rejected others (mandatory Schema Registry, no
-partition-in-policy, no backfill, no pause).
+**Managed stream-to-table services** set the user-experience bar: enable
+materialization on a topic, get an Iceberg/Delta table. We borrowed several of
+their design decisions (multi-format target, retention dual-bound,
+`SUSPEND`/`SKIP`/`LOG` error modes) and explicitly rejected others (mandatory
+Schema Registry, no partition-in-policy, no backfill, no pause).
 
 ## Motivation
 
-1. **Customers ask for non-lakehouse sinks** — ClickHouse for analytics,
+1. **Users need non-lakehouse sinks** — ClickHouse for analytics,
    JDBC warehouses, search indexes. Re-implementing the orchestration / schema
    / evolution stack per sink is expensive and error-prone.
 2. **The existing compaction code path leaked lakehouse types** into the
@@ -452,45 +452,24 @@ No data is lost; no rewrites required.
 
 ## How will this be made available?
 
-### Fully-managed product: Hosted / BYOC Cloud
-
-- The Tableflow-style "enable" surface (UI button / Cloud API / Terraform
-  resource) is wired to `StreamCatalog.setStreamMaterialization(...)` under
-  the hood.
-- Cloud-managed catalog bindings (Iceberg REST, Glue, Unity Catalog, Polaris)
-  are configured at the **environment** level by Cloud Ops; users pick a
-  binding by name in the policy.
-- Documentation in `lakestream-docs` adds a new section "Materialize a stream to a
-  table" with a per-backend page (Iceberg, Delta, ClickHouse). Each page
-  documents the recognised keys on the `TableCatalog.connection` /
-  `TableCatalog.properties` maps and which keys are sensibly overrideable
-  per-stream via `policy.connectionOverrides`.
-- Runbook: troubleshooting `DEGRADED`/`SUSPENDED` materialization state —
-  covers schema-incompatibility, commit-exhausted, sink-unavailable; mapping
-  each to the relevant metric and the operator action.
-
-### Self-managed product: Platform / Private Cloud
-
-- The same `StreamCatalog` Java API is available; platform documentation
-  explains how to register table catalogs, set the active namespace policy,
-  and attach per-stream override policies. See
+- The `StreamCatalog` Java API registers table catalogs, sets the active
+  namespace policy, and attaches per-stream override policies. See
   [docs/user/table-materialization.md](../user/table-materialization.md) for
   the user-facing quickstart.
-- Operators configure cluster `TableCatalog` definitions in
-  `lakehouse.properties` exactly as today (`iceberg.catalog.<name>.*`,
-  `delta.catalog.<name>.*`) — bootstrap translates each prefix into a typed
-  `TableCatalog`. For ClickHouse, a new prefix `clickhouse.catalog.<name>.*`
-  carries DSN, auth, and optional default database.
-- Platform docs link to the migration guide showing how to convert today's
-  topic-property-based materialization into the typed
+- Operators configure cluster `TableCatalog` definitions in the compaction
+  configuration (`iceberg.catalog.<name>.*`, `delta.catalog.<name>.*`) —
+  bootstrap translates each prefix into a typed `TableCatalog`. For
+  ClickHouse, a new prefix `clickhouse.catalog.<name>.*` carries DSN, auth,
+  and optional default database.
+- Streams that were materialized through topic properties move to the typed
   `TableMaterializationPolicy` via `setStreamMaterialization(...)`.
 
 ## Alternatives
 
 1. **Build a new framework alongside the existing compaction code.** Rejected
-   per discussion: the user explicitly wanted a refactor in-place, not a
-   parallel implementation. Keeping two code paths doubles operational
-   surface and creates a migration cliff.
+   in favour of a refactor in place rather than a parallel implementation.
+   Keeping two code paths doubles operational surface and creates a
+   migration cliff.
 2. **Keep the existing `CompactionService` interface as-is and just add
    ClickHouse alongside Delta/Iceberg.** Rejected: the interface today baked
    in lakehouse-specific exception types, the `LakehouseCompactionServiceImpl`
@@ -499,16 +478,16 @@ No data is lost; no rewrites required.
    ClickHouse to inherit lakehouse coupling.
 3. **Two separate record types — a lean `NamespaceMaterializationDefaults`
    and a full per-stream `TableMaterializationPolicy`.** Considered and
-   **rejected**: the user wanted namespace policy to **actively materialize**
-   every stream (not just supply defaults if a stream opts in), so the
+   **rejected**: namespace policy has to **actively materialize** every
+   stream (not just supply defaults if a stream opts in), so the
    namespace record had to carry the full active policy. One record applied
    at both layers with deep-merge override semantics is therefore the right
    shape: namespace settings are active and stream settings override.
-4. **Multi-format `backends: List<TableCatalogType>` inside one policy
-   (Tableflow style).** Considered. Rejected: a single registered
+4. **Multi-format `backends: List<TableCatalogType>` inside one policy.**
+   Considered. Rejected: a single registered
    `TableCatalog` already captures one connection + one type; multi-format =
    multiple `TableCatalog`s + multiple policies. Cleaner, no list-merge
-   semantics on the single most important field, and aligns with the user's
+   semantics on the single most important field, and keeps the
    "one stream → one table" rule.
 5. **`TableCatalog` as inline blob on every policy (no registration).**
    Considered. Rejected: every stream policy would have to redeclare
@@ -517,8 +496,8 @@ No data is lost; no rewrites required.
    named-binding pattern with a separate `TableCatalog` keyspace is
    operationally far better.
 6. **Stream-to-stream as the first new sink, not ClickHouse.** Considered for
-   "easier proof of extensibility" but ClickHouse was the customer-driven
-   first target. Stream-to-stream can come in a follow-up LIP if demand
+   "easier proof of extensibility" but ClickHouse was the first target
+   users asked for. Stream-to-stream can come in a follow-up LIP if demand
    surfaces.
 7. **Materialization-per-stream cardinality = N (multi-table fan-out).**
    Considered. Deferred: the existing 1:1 model covers known use cases; the
@@ -530,9 +509,9 @@ No data is lost; no rewrites required.
 - This LIP defines the framework; per-backend LIPs (Iceberg-specific knobs,
   Delta-specific knobs, ClickHouse table engines + idempotency semantics) can
   follow when those backends' surface expands.
-- The naming `TableMaterializationPolicy` is chosen over `TableflowPolicy` /
+- The naming `TableMaterializationPolicy` is chosen over alternatives such as
   `TableSinkPolicy` to align with the user-facing phrase "materialize a
-  stream to a table" and to avoid naming collision with Confluent Tableflow.
+  stream to a table".
 - The new module `ursa-storage-materialization` is intentionally small:
   SPI + serde + framework only. `TableCatalog` implementations live in their
   own modules (`ursa-storage-lakehouse`, new `ursa-storage-clickhouse`, …) so
@@ -540,41 +519,8 @@ No data is lost; no rewrites required.
 
 ## Implementation Status
 
-All 14 implementation tasks landed across commits `929397ca5..5e8dc1e12` on
-branch `ursa-storage-table-materialization-framework`:
-
-| Task | Commit | Summary |
-|------|--------|---------|
-| T1 | `929397ca5` | `lakestream-api` materialization types |
-| T2 | `a76ed1400` | Materialization policy on `Namespace`, stream metadata, `StreamCatalog` |
-| T3 | `fec7ac082` | `TableMaterializationPolicy.resolve` + `TableNaming` interpolation |
-| T4 | `b6d74e207` | New `ursa-storage-materialization` module + generic serde moved |
-| T5 | `5364909ea` | Public SPI for stream-to-table sinks |
-| T6 | `b3899c15d` | `IndexedStreamCatalog` persistence for materialization policy |
-| T7 | `cfdeb88e7` | `TableCatalogBootstrap` translates legacy config to `TableCatalog` |
-| T8 | `9c64ef4bb` | `LakehouseTableMaterializer` adapter + factories |
-| T9 | `236cd648d` | Split `LakehouseCompactionServiceImpl` + add `CompactionStorageBindings` |
-| T10 | `9c168edcd` | Wire orchestrator through `MaterializationService` SPI |
-| T11 | `38ff983c7` | New `ursa-storage-clickhouse` module + materializer |
-| T12 | `be0c6c51b` | `ClickHouseTableSchemaService` + Avro → ClickHouse translation |
-| T13 | `2b073afd7` | End-to-end materialization tests via Testcontainers |
-| T14 | `5e8dc1e12` | Cross-cutting policy resolution + evolution gating + metrics contract |
-
-Two follow-ups are tracked separately:
-
-1. **CAS-protect `IndexedStreamCatalog` read-modify-write paths** on
-   namespace/stream metadata edits to eliminate a latent
-   last-writer-wins race when multiple admin clients mutate policies
-   concurrently.
-2. **Reconnect `LakehouseTableMaterializerFactory.schemaService`** and
-   populate `CommitResult` once `IWriteResult` accessors are added to the
-   lakehouse writers — currently `schemaService(...)` returns `null` for
-   lakehouse factories and `CommitResult` carries empty
-   `lastOffset`/`rowCount` after a successful Delta/Iceberg commit. Neither
-   gap impacts the orchestrator's correctness, but they leave headroom
-   on the metrics surface and prevent the framework from skipping
-   schema-evolution probes when the writer already knows the resolved
-   schema.
+Implemented and released in Ursa 1.0.0. The next section records where the
+1.0.0 code differs from this design.
 
 ## Status notes (1.0.0)
 
