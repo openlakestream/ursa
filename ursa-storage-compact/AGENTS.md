@@ -1,6 +1,6 @@
 # ursa-storage-compact
 
-Compaction orchestration. 8 Java files in main, 12 in test.
+Compaction orchestration. 8 Java files in main (including `package-info.java`), 9 in test.
 
 Coordinates WAL → Compacted Object compaction across the cluster, plus
 sink-neutral materialization dispatch via the T10 `MaterializationService` SPI.
@@ -18,7 +18,7 @@ sink-neutral materialization dispatch via the T10 `MaterializationService` SPI.
 ## Package Layout
 
 ```
-io.lakestream.ursa.compact        — Main compaction (5 classes)
+io.lakestream.ursa.compact        — Main compaction (4 classes)
 io.lakestream.ursa.compact.elect  — Leader election (2 classes)
 ```
 
@@ -40,14 +40,21 @@ CompactionScheduler.start()
           - storageBindings.createCompactedTaskRunner().start()
           - storageBindings.createAsyncCompactedDataCleaner().start()
 
-CompactionWorker.run() loop, per task:
-  1. CompactionService.compactStream(task)        (internal WAL → CO)
-  2. StreamMetadata metadata = streamCatalog.loadStream(id)
-  3. if (streamCatalog.resolveMaterialization(id).join().isPresent())
-        materializationService.materialize(MaterializationTask)
-  4. on MaterializationException with non-retryable code:
-        materializationService.invalidate(streamId)
-        (the outer ExceptionCode-based retry/quarantine routes the failure)
+CompactionWorker.run() loop, per task — one path or the other, never both:
+  if materializationEnabled (default false):
+    maybeMaterialize(task)
+      1. StreamMetadata metadata = streamCatalog.loadStream(id)
+      2. resolved = streamCatalog.resolveMaterialization(id), falling back to
+         materializationService.resolveFromTaskProperties(...)
+      3. materializationService.materialize(MaterializationTask)
+         (internal compacted objects and the external table in one read pass)
+  else:
+    CompactionService.compactStream(task)         (legacy path: internal WAL → CO, plus
+                                                   Iceberg/Delta tables from task properties
+                                                   when SDT is enabled)
+  on MaterializationException with a code other than SOURCE_READ_ERROR / SOURCE_THROTTLED:
+    materializationService.invalidate(streamId)
+  the outer ExceptionCode-based retry / quarantine / task deletion routes every failure
 ```
 
 The orchestrator drives both halves through reflective loaders so the compact
@@ -74,7 +81,6 @@ This module integrates the heaviest dependency set in the project:
 - **ursa-storage-materialization** — SPI + serde, runtime
 - **ursa-storage-lakehouse** (provided) — concrete bindings + materialization
   service, all loaded reflectively
-- **Oxia** — Metadata coordination, leader election
 - **Oxia** — Metadata coordination and leader election
 
 Changes here affect the entire data pipeline.
@@ -90,7 +96,6 @@ Key tests:
 - `CompactionWorkerMaterializationDispatchTest` — materialize() called when policy resolves
 - `CompactionWorkerMaterializationFailureTest` — invalidate() called on non-retryable failure
 - `CompactionSchedulerWiringTest` — config-key resolution incl. deprecated alias
-- `KafkaE2ETest` — end-to-end compaction flow
 - `LeaderElectionServiceTest` — distributed coordination
 
 ## Pitfalls
@@ -98,5 +103,6 @@ Key tests:
 - Heaviest dependency set — changes cascade across modules
 - Leader election logic is coordination-sensitive
 - E2E tests require full Docker infrastructure
-- Never add direct `io.lakestream.ursa.lakehouse.*` imports — the T10 grep
-  gate fails the build. Use the bindings/SPI or reflective load instead.
+- Never add direct `io.lakestream.ursa.lakehouse.*` imports. No build step
+  enforces this yet, so run the grep above before you finish. Use the
+  bindings/SPI or reflective load instead.
