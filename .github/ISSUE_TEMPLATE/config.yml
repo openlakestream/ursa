@@ -6,6 +6,9 @@ contact_links:
   - name: Share an idea or discuss a design
     url: https://github.com/lakestream-io/ursa/discussions/categories/ideas
     about: Open-ended ideas, and proposals before they become a LIP.
+  - name: Lakestream Improvement Proposals (LIPs)
+    url: https://github.com/lakestream-io/lips
+    about: Accepted designs for every Lakestream component, and how to propose one.
   - name: Report a security vulnerability
     url: https://github.com/lakestream-io/ursa/security/advisories/new
     about: Please report security issues privately, not in a public issue. See SECURITY.md.

@@ -8,7 +8,8 @@ body:
       value: |
         Thanks for proposing a new materializer. Please read
         [Write a materializer](https://github.com/lakestream-io/ursa/blob/main/docs/developer/materializer-guide.md)
-        first. New materializers live in their own repositories, and every new materializer needs a LIP.
+        first. New materializers live in their own repositories, and every new materializer needs a
+        [LIP](https://github.com/lakestream-io/lips).
         This issue tracks the proposal until the LIP is ready.
   - type: input
     id: destination
@@ -78,5 +79,5 @@ body:
     attributes:
       label: Before you submit
       options:
-        - label: I understand that every new materializer needs a LIP (docs/lip/README.md).
+        - label: I understand that every new materializer needs a LIP ([lakestream-io/lips](https://github.com/lakestream-io/lips)).
           required: true

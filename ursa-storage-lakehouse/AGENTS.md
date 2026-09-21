@@ -30,7 +30,7 @@ LakehouseEntryMetadata) lives in `ursa-storage-materialization`** under
 - `LakehouseEntry<T>` → `MaterializationRecord<T>`
 - `LakehouseTableSchemaService<V,R>` → `TableSchemaService<V,R>`
 
-## LIP-161 Materializer Classes (T8 + T9)
+## LIP-161 Materializer Classes
 
 This module also provides the `TableMaterializer` implementations and the
 orchestrator bindings for Iceberg / Delta / Delta-UC:
@@ -58,9 +58,9 @@ Iceberg sub-flavours (Glue / REST / Hadoop / Polaris / Unity) are routed
 through `TableCatalog.connection["catalog-impl"]` — one factory handles all
 Iceberg catalogs.
 
-## T9 Split — Internal vs External Compaction
+## Internal vs External Compaction Split
 
-Before T9, `LakehouseCompactionServiceImpl` carried both halves:
+Before LIP-161, `LakehouseCompactionServiceImpl` carried both halves:
 - WAL → Compacted Object (Parquet on object storage) — the stream's own
   data, kept here under `compact.LakehouseCompactionServiceImpl`.
 - WAL → external Delta/Iceberg table — extracted to

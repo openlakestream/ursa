@@ -31,7 +31,7 @@ body:
       label: Does this change a public contract?
       description: >-
         Changes to public types in lakestream-api, an SPI contract, or the on-object/WAL format need a
-        LIP (see docs/lip/README.md).
+        LIP (see https://github.com/lakestream-io/lips).
       options:
         - "No"
         - "Yes, it changes lakestream-api, an SPI contract, or a storage format"
