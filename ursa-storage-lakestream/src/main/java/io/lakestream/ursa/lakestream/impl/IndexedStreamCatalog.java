@@ -3305,7 +3305,7 @@ public class IndexedStreamCatalog implements StreamCatalog {
         });
     }
 
-    // --- Materialization (T6: persisted in Oxia) ---
+    // --- Materialization (persisted in Oxia) ---
 
     @Override
     public CompletableFuture<Void> registerTableCatalog(TableCatalog catalog) {

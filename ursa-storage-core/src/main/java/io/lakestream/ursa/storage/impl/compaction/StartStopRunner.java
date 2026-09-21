@@ -8,7 +8,7 @@ package io.lakestream.ursa.storage.impl.compaction;
  * Minimal start/stop lifecycle contract for the long-running runners that the
  * {@link CompactionStorageBindings} layer exposes to the orchestrator.
  *
- * <p>Introduced in T9 so that the orchestrator (T10) can drive
+ * <p>Introduced so that the orchestrator can drive
  * {@link #start()} / {@link #stop()} on runners without importing
  * lakehouse-specific runner classes. Concrete implementations (e.g. lakehouse
  * publish / commit / cleaner runners) live in their respective integration

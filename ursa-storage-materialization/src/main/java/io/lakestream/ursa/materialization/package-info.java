@@ -6,12 +6,12 @@
  * Public Service-Provider Interface (SPI) of the stream-to-table
  * materialization framework.
  *
- * <p>Sink back-ends (lakehouse for T8, ClickHouse for T11) plug in by
+ * <p>Sink back-ends (lakehouse, ClickHouse) plug in by
  * implementing {@link io.lakestream.ursa.materialization.TableMaterializer}
  * and {@link io.lakestream.ursa.materialization.TableMaterializerFactory},
  * registering the factory through {@link java.util.ServiceLoader}.
  *
- * <p>The orchestrator (T9 / T10) drives sinks through
+ * <p>The orchestrator drives sinks through
  * {@link io.lakestream.ursa.materialization.MaterializationService}, handing
  * the service a {@link io.lakestream.ursa.materialization.MaterializationRuntime}
  * bag of framework services at startup and individual
@@ -24,7 +24,7 @@
  * {@code FailureMessageHandler}) round out the contract so sinks never have to
  * depend on lakehouse-specific observability or configuration code.
  *
- * <p>See {@code docs/lip/LIP-161-Table-Materialization-Framework.md} (added
- * in T15) for the design rationale.
+ * <p>See {@code docs/lip/LIP-161-Table-Materialization-Framework.md} for the
+ * design rationale.
  */
 package io.lakestream.ursa.materialization;

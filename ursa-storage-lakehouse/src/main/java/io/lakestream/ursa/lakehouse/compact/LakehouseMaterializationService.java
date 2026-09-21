@@ -57,7 +57,7 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Lakehouse-backed implementation of the {@link MaterializationService} SPI.
  *
- * <p>T10 wired this service end to end:
+ * <p>This service is wired end to end:
  * <ul>
  *   <li>Factories are discovered via {@link ServiceLoader} on initialise.</li>
  *   <li>{@link #materialize(MaterializationTask)} looks up the {@link TableMaterializerFactory} for
@@ -636,7 +636,7 @@ public class LakehouseMaterializationService implements MaterializationService {
             throw new MaterializationException(ExceptionCode.INTERNAL_ERROR,
                     "Materialization requires a StorageApi to read WAL entries");
         }
-        // Metrics are not yet wired into the materialization read path (T10 uses noop throughout).
+        // Metrics are not yet wired into the materialization read path (noop throughout).
         return new UrsaEntryProcessFactory(storageApi, CompactionMetrics.NOOP);
     }
 
@@ -742,8 +742,8 @@ public class LakehouseMaterializationService implements MaterializationService {
     }
 
     /**
-     * Resolves the {@link TableMaterializationPolicy} from the task. Convenience hook for T10
-     * which may need to inspect the effective policy before constructing the materializer.
+     * Resolves the {@link TableMaterializationPolicy} from the task. Convenience hook for callers
+     * that need to inspect the effective policy before constructing the materializer.
      */
     static TableMaterializationPolicy effectivePolicy(MaterializationTask task) {
         return task.resolvedMaterialization().effectivePolicy();

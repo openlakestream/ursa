@@ -10,7 +10,7 @@ import java.util.function.BooleanSupplier;
  * Sink-neutral factory for the long-running compaction runners and storage
  * helpers the orchestrator needs.
  *
- * <p>Introduced in T9 so that {@code CompactionScheduler} (T10) no longer has
+ * <p>Introduced so that {@code CompactionScheduler} no longer has
  * to import lakehouse-specific runner classes directly. Each integration module
  * (lakehouse today, clickhouse later) provides a concrete bindings
  * implementation that wires up its own concrete runners.

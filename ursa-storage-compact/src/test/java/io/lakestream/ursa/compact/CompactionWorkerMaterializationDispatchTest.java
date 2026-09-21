@@ -46,7 +46,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * T10 smoke tests for the {@link CompactionWorker} → {@link MaterializationService} dispatch.
+ * Smoke tests for the {@link CompactionWorker} → {@link MaterializationService} dispatch.
  *
  * <p>Verifies the two end states:
  * <ul>

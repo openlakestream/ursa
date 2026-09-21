@@ -23,7 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Adapts the existing {@link AbstractLakehouseWriter} hierarchy to the new
- * {@link TableMaterializer} SPI introduced in T5.
+ * {@link TableMaterializer} SPI.
  *
  * <p>The delegate's {@code write} buffers; {@code close} flushes and returns the
  * underlying {@link IWriteResult write results}. This adapter implements

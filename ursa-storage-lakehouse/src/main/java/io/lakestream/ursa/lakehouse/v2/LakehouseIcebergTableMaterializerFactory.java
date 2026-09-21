@@ -31,8 +31,8 @@ import javax.annotation.Nullable;
  * <p>The {@link #schemaService(TableMaterializationPolicy, TableCatalog, StreamMetadata)} method returns
  * {@code null} because the underlying {@code IcebergExternalTableWriter} owns its own
  * {@code IcebergTableSchemaService} (constructed lazily once a write triggers table creation).
- * Building a second instance here would require an eager catalog connection — T8 explicitly
- * defers that wiring to the orchestrator refactor in T9/T10.
+ * Building a second instance here would require an eager catalog connection, so that wiring
+ * is deferred to the orchestrator refactor.
  */
 public final class LakehouseIcebergTableMaterializerFactory implements TableMaterializerFactory {
 
@@ -61,7 +61,7 @@ public final class LakehouseIcebergTableMaterializerFactory implements TableMate
                                                   TableCatalog resolvedCatalog,
                                                   StreamMetadata streamMetadata) {
         // The writer constructs its own IcebergTableSchemaService lazily; returning null here
-        // avoids an eager catalog connection. T9 can route through the writer once the
+        // avoids an eager catalog connection. A later change can route through the writer once the
         // orchestrator owns the schema-evolution lifecycle.
         return null;
     }

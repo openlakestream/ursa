@@ -16,7 +16,7 @@ import io.lakestream.api.materialization.WriteMode;
  * otherwise the default {@link #MERGE_TREE} append-only engine is used.
  *
  * <p>The materializer does not issue DDL to create/alter the engine — that
- * responsibility belongs to the schema service (T12). The enum is carried on
+ * responsibility belongs to the schema service. The enum is carried on
  * the materializer so commit metadata can surface which engine was assumed.
  */
 public enum ClickHouseTableEngine {

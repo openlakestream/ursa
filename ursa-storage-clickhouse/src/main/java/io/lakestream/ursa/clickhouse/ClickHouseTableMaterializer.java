@@ -112,7 +112,7 @@ public final class ClickHouseTableMaterializer implements TableMaterializer<Gene
      * <p>Delegates to {@link #ClickHouseTableMaterializer(Connection,
      * TableIdentifier, ClickHouseTableEngine, List, int,
      * ClickHouseTableSchemaService)} with a {@code null} schema service so the
-     * JSON fallback decoder is used. T11 tests and callers that don't yet
+     * JSON fallback decoder is used. Tests and callers that don't yet
      * provide a schema service continue to use this overload.
      */
     ClickHouseTableMaterializer(Connection connection,
@@ -131,7 +131,7 @@ public final class ClickHouseTableMaterializer implements TableMaterializer<Gene
      * version} is set, {@link #decodeRow(GenericEntry, MaterializationContext)}
      * uses the persisted {@link ClickHouseSchema} to align AVRO record fields
      * with ClickHouse columns. When either is absent, the JSON fallback path
-     * (T11 placeholder) handles the row.
+     * (the placeholder path) handles the row.
      */
     ClickHouseTableMaterializer(Connection connection,
                                 TableIdentifier tableIdentifier,
@@ -634,7 +634,7 @@ public final class ClickHouseTableMaterializer implements TableMaterializer<Gene
         if (node.isTextual()) {
             return node.textValue();
         }
-        // Fallback: object/array -> JSON string. T12 will replace this with proper structural
+        // Fallback: object/array -> JSON string. This can be replaced with proper structural
         // mapping (ClickHouse Array/Tuple/Map types) once the schema service is wired in.
         return node.toString();
     }

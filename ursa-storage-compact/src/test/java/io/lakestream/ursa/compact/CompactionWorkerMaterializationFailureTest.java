@@ -51,7 +51,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * T10 smoke test for the sink-neutral failure path.
+ * Smoke test for the sink-neutral failure path.
  *
  * <p>When {@link MaterializationService#materialize(MaterializationTask)} throws a
  * {@link MaterializationException} with a non-retryable {@link ExceptionCode}, the worker must

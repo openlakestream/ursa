@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Orchestrator entry point invoked by {@code CompactionWorker} (T10).
+ * Orchestrator entry point invoked by {@code CompactionWorker}.
  *
  * <p>A single deployment owns one {@code MaterializationService} instance.
  * It is initialised once at scheduler startup with the framework runtime and

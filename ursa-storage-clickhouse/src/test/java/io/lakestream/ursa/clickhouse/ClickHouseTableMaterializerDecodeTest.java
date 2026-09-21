@@ -36,8 +36,8 @@ import org.mockito.quality.Strictness;
 
 /**
  * Decode-path tests for {@link ClickHouseTableMaterializer} that verify the
- * schema-service-driven row decoder (T12) and the JSON fallback decoder
- * (T11 placeholder, retained for unversioned streams).
+ * schema-service-driven row decoder and the JSON fallback decoder
+ * (retained for unversioned streams).
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)

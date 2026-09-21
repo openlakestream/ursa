@@ -35,9 +35,9 @@ import lombok.extern.slf4j.Slf4j;
  *   <li>{@code password} — optional raw password; takes precedence over
  *       {@code password-ref}.</li>
  *   <li>{@code password-ref} — optional reference URI (e.g. {@code secret://…}).
- *       T11 does <em>not</em> resolve these — a WARN is emitted and the connect
+ *       These are <em>not</em> resolved — a WARN is emitted and the connect
  *       proceeds without a password so the failure surface is the broker's,
- *       not ours. A future task (T13/T14) will plug in a resolver.</li>
+ *       not ours. A resolver can be plugged in later.</li>
  * </ul>
  *
  * <p>Only the recognized connection keys above are forwarded to the JDBC driver. Any other entry in

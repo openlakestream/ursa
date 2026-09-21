@@ -48,7 +48,7 @@ public record MaterializationServiceConfig(
      * Sensible defaults: 8 workers, 50 MiB/s WAL read rate limit.
      *
      * <p>Suitable for tests and bootstrap; production deployments should override
-     * these values via the config bootstrap planned for T7.
+     * these values via the config bootstrap.
      */
     public static MaterializationServiceConfig defaults() {
         return new MaterializationServiceConfig(

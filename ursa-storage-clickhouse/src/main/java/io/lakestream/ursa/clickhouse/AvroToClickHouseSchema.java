@@ -25,7 +25,7 @@ import org.apache.avro.Schema;
  *   <li>{@link Schema.Type#BYTES BYTES} &rarr; {@code String} — bytes-as-string
  *       simplification for v1. Production deployments that need binary
  *       fidelity should map this to {@code FixedString(n)} or base64-encode
- *       on the producer side. T13's e2e test can refine if needed.</li>
+ *       on the producer side. The end-to-end tests can refine this if needed.</li>
  *   <li>{@link Schema.Type#RECORD RECORD} (nested) &rarr; flattened with
  *       dotted names (e.g. {@code address.city}).</li>
  *   <li>{@link Schema.Type#ARRAY ARRAY&lt;T&gt;} &rarr; {@code Array(T)}.</li>

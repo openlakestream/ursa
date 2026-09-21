@@ -27,7 +27,7 @@ import javax.annotation.Nullable;
  * <p>The {@link #schemaService(TableMaterializationPolicy, TableCatalog, StreamMetadata)} method returns
  * {@code null} for the same reasons noted on the Iceberg counterpart: the underlying writer owns
  * its own {@code DeltaTableSchemaService}, and eager construction here would require a live
- * connection that T8 deliberately defers to the orchestrator refactor (T9/T10).
+ * connection that is deliberately deferred to the orchestrator refactor.
  */
 public final class LakehouseDeltaTableMaterializerFactory implements TableMaterializerFactory {
 
