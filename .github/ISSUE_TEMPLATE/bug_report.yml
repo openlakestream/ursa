@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Thanks for taking the time to report a bug. Please don't report security vulnerabilities here.
-        Follow [SECURITY.md](https://github.com/lakestream-io/ursa/blob/main/SECURITY.md) instead.
+        Follow [SECURITY.md](https://github.com/openlakestream/ursa/blob/main/SECURITY.md) instead.
   - type: textarea
     id: what-happened
     attributes:

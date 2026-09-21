@@ -12,7 +12,7 @@ Ursa ships materializers for Apache Iceberg, Delta Lake (including Delta on Unit
 ClickHouse. This guide shows you how to write one for a destination that Ursa doesn't support yet.
 
 The design behind the framework is in
-[LIP-161](https://github.com/lakestream-io/lips/blob/main/proposals/LIP-161-Table-Materialization-Framework.md).
+[LIP-161](https://github.com/openlakestream/lips/blob/main/proposals/LIP-161-Table-Materialization-Framework.md).
 For how users configure materialization, see
 [Materialize a stream to a table](../user/table-materialization.md).
 
@@ -21,9 +21,9 @@ For how users configure materialization, see
 - **Materializers live in their own repositories.** Build yours against the published Ursa
   artifacts. This repository keeps the Iceberg, Delta and ClickHouse materializers.
 - **Every new materializer needs a LIP.** Start with the
-  [New materializer proposal](https://github.com/lakestream-io/ursa/issues/new?template=materializer_proposal.yml)
-  form. Then write the LIP in [lakestream-io/lips](https://github.com/lakestream-io/lips), following
-  its [contributing guide](https://github.com/lakestream-io/lips/blob/main/CONTRIBUTING.md). The
+  [New materializer proposal](https://github.com/openlakestream/ursa/issues/new?template=materializer_proposal.yml)
+  form. Then write the LIP in [openlakestream/lips](https://github.com/openlakestream/lips), following
+  its [contributing guide](https://github.com/openlakestream/lips/blob/main/CONTRIBUTING.md). The
   template has a section for materializers.
 - **You also need a small pull request here.** In Ursa 1.0, the materializer type is a closed enum
   in `lakestream-api` (`TableCatalogType`), and the compactor's code switches on it. Each new materializer
@@ -32,7 +32,7 @@ For how users configure materialization, see
   up the SPI so that this step disappears is planned work.
 - **Materializers are written in Java.** The compactor discovers them with `ServiceLoader` and runs
   them inside its JVM. To build one in another language, start a thread in
-  [Discussions: Ideas](https://github.com/lakestream-io/ursa/discussions/categories/ideas). An
+  [Discussions: Ideas](https://github.com/openlakestream/ursa/discussions/categories/ideas). An
   out-of-process design is an open question, and we'd like to work it out with you.
 - **Develop against a local build until a release has your type.** Your factory refers to your
   `TableCatalogType` constant, which exists only in your registration branch until a release ships
@@ -745,6 +745,6 @@ to commit on its own, the way ClickHouse does.
 
 ## Getting help
 
-Ask in [Discussions: Q&A](https://github.com/lakestream-io/ursa/discussions/categories/q-a), or on
+Ask in [Discussions: Q&A](https://github.com/openlakestream/ursa/discussions/categories/q-a), or on
 your proposal issue. When your materializer is ready, share it in
-[Discussions: Show and tell](https://github.com/lakestream-io/ursa/discussions/categories/show-and-tell).
+[Discussions: Show and tell](https://github.com/openlakestream/ursa/discussions/categories/show-and-tell).

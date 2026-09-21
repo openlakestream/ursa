@@ -13,7 +13,7 @@ fix.
 Report them privately, in either of these ways:
 
 1. **GitHub private vulnerability reporting.** Use the *Report a vulnerability* button on the
-   [Security tab](https://github.com/lakestream-io/ursa/security) of this repository. We prefer this
+   [Security tab](https://github.com/openlakestream/ursa/security) of this repository. We prefer this
    channel: it's private, it keeps the conversation in one thread, and it stays attached to the
    repository.
 2. **Email `security@streamnative.io`**, with the repository name in the subject line.

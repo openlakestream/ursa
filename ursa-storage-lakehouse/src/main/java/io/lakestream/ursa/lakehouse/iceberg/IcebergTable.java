@@ -81,7 +81,7 @@ public class IcebergTable {
     public static final String URSA_KEYS_PROPERTY = "ursa.keys";
     private static final String LAKESTREAM_SCHEMA_MAPPING = "lakestream.schema.mapping";
     private static final Set<String> LAKESTREAM_MANAGED_KEYS = Set.of(LAKESTREAM_SCHEMA_MAPPING);
-    // used for compatibility: https://github.com/lakestream-io/ursa-storage/issues/1377
+    // used for compatibility: https://github.com/openlakestream/ursa-storage/issues/1377
     public static final Set<String> PRESERVED_PROPERTIES =
             Set.of(METADATA_DELETE_AFTER_COMMIT_ENABLED, PARQUET_COMPRESSION, LAKESTREAM_SCHEMA_MAPPING);
 
@@ -1401,7 +1401,7 @@ public class IcebergTable {
                                         LakehouseConfiguration configuration,
                                         Optional<String> catalogName) {
         // if the catalog is unity catalog, we need not to set the schema name mapping
-        // https://github.com/lakestream-io/ursa-storage/issues/1054
+        // https://github.com/openlakestream/ursa-storage/issues/1054
         String catalogType = configuration.getIcebergCatalogBackendType(catalogName).toString();
         if (!ICEBERG_CATALOG_TYPE_UNITYCATALOG.equalsIgnoreCase(catalogType)
                 && !ICEBERG_CATALOG_TYPE_HORIZON.equalsIgnoreCase(catalogType)) {

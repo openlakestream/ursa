@@ -17,7 +17,7 @@
 /ursa-storage-lakehouse/            @hangc0276 @codelipenghui
 /ursa-storage-clickhouse/           @hangc0276 @codelipenghui
 
-# Documentation. Design proposals (LIPs) live in lakestream-io/lips.
+# Documentation. Design proposals (LIPs) live in openlakestream/lips.
 /docs/                              @hangc0276 @codelipenghui
 
 # Licensing, governance, contributor and agent policy, and repository automation.

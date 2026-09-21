@@ -4,7 +4,7 @@
 
 Ursa is a storage engine that implements [Lakestream](https://openlakestream.org), an open API and specification for stream storage on object storage, with a stream materialization framework that defines how a stream becomes a lakehouse table. Ursa turns any object, block, or file store into stream storage, and it materializes streams into lakehouse tables and other queryable states.
 
-Ursa 1.0 is published to Maven Central under the `org.openlakestream` group; the [quickstart](https://openlakestream.org/docs/ursa/quickstart) embeds it in a Java program. It is built to be embedded in messaging brokers: [Ursa for Apache Kafka (UFK)](https://github.com/lakestream-io/kafka) is a Kafka distribution built on the Lakestream API and specification that stores its diskless topics through Ursa.
+Ursa 1.0 is published to Maven Central under the `org.openlakestream` group; the [quickstart](https://openlakestream.org/docs/ursa/quickstart) embeds it in a Java program. It is built to be embedded in messaging brokers: [Ursa for Apache Kafka (UFK)](https://github.com/openlakestream/kafka) is a Kafka distribution built on the Lakestream API and specification that stores its diskless topics through Ursa.
 
 ## Principles
 
@@ -73,9 +73,9 @@ See [Contributing Guide](CONTRIBUTING.md) for information on how to contribute t
 
 ## Support
 
-- **Issues**: Report bugs and feature requests on [GitHub Issues](https://github.com/lakestream-io/ursa/issues)
+- **Issues**: Report bugs and feature requests on [GitHub Issues](https://github.com/openlakestream/ursa/issues)
 - **Documentation**: See [docs/](docs/) for detailed guides
-- **Questions**: Ask in [GitHub Discussions](https://github.com/lakestream-io/ursa/discussions)
+- **Questions**: Ask in [GitHub Discussions](https://github.com/openlakestream/ursa/discussions)
 - **Specification**: The Lakestream API and specification are documented at [openlakestream.org](https://openlakestream.org)
 
 ## License
