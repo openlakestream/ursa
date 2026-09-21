@@ -12,7 +12,7 @@ You can follow the instructions to set up a local Oxia Cluster [here](https://gi
 
 ## Build
 ```bash
-$ git clone git@github.com:lakestream-io/ursa.git
+$ git clone git@github.com:openlakestream/ursa.git
 $ cd ursa
 $ mvn -T 3C clean install -DskipTests
 ```

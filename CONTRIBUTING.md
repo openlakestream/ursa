@@ -11,12 +11,12 @@ API are all welcome.
 ## Ways to contribute
 
 - **Report a bug or request a feature.** Open an
-  [issue](https://github.com/lakestream-io/ursa/issues/new/choose).
+  [issue](https://github.com/openlakestream/ursa/issues/new/choose).
 - **Ask a question or share an idea.** Start a
-  [discussion](https://github.com/lakestream-io/ursa/discussions).
+  [discussion](https://github.com/openlakestream/ursa/discussions).
 - **Fix something.** Issues labeled
-  [`good first issue`](https://github.com/lakestream-io/ursa/labels/good%20first%20issue) and
-  [`help wanted`](https://github.com/lakestream-io/ursa/labels/help%20wanted) are good places to
+  [`good first issue`](https://github.com/openlakestream/ursa/labels/good%20first%20issue) and
+  [`help wanted`](https://github.com/openlakestream/ursa/labels/help%20wanted) are good places to
   start. Comment on the issue to say you're working on it, so nobody duplicates your work.
 - **Improve the docs.** If something confused you, it will confuse the next person too.
 - **Write a materializer.** Materialize streams into a table format or store that Ursa doesn't
@@ -28,10 +28,10 @@ API are all welcome.
 
 | For | Use |
 |---|---|
-| Bugs and concrete feature requests | [Issues](https://github.com/lakestream-io/ursa/issues) |
-| Questions | [Discussions: Q&A](https://github.com/lakestream-io/ursa/discussions/categories/q-a) |
-| Design ideas, and proposals before they become a LIP | [Discussions: Ideas](https://github.com/lakestream-io/ursa/discussions/categories/ideas) |
-| Something you built with Ursa | [Discussions: Show and tell](https://github.com/lakestream-io/ursa/discussions/categories/show-and-tell) |
+| Bugs and concrete feature requests | [Issues](https://github.com/openlakestream/ursa/issues) |
+| Questions | [Discussions: Q&A](https://github.com/openlakestream/ursa/discussions/categories/q-a) |
+| Design ideas, and proposals before they become a LIP | [Discussions: Ideas](https://github.com/openlakestream/ursa/discussions/categories/ideas) |
+| Something you built with Ursa | [Discussions: Show and tell](https://github.com/openlakestream/ursa/discussions/categories/show-and-tell) |
 | Security vulnerabilities | Report privately, as described in [SECURITY.md](SECURITY.md) |
 | Conduct concerns | See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
 
@@ -54,8 +54,8 @@ read them.
   - every new materializer
 
   LIPs for every Lakestream component live in
-  [lakestream-io/lips](https://github.com/lakestream-io/lips). See its
-  [contributing guide](https://github.com/lakestream-io/lips/blob/main/CONTRIBUTING.md) for the
+  [openlakestream/lips](https://github.com/openlakestream/lips). See its
+  [contributing guide](https://github.com/openlakestream/lips/blob/main/CONTRIBUTING.md) for the
   process and the template.
 
 ## Build and test
@@ -66,14 +66,14 @@ set `JAVA_HOME`. Many tests, tagged or not, start the services they need, such a
 object-storage emulator, in containers through Testcontainers.
 
 ```bash
-git clone https://github.com/lakestream-io/ursa.git
+git clone https://github.com/openlakestream/ursa.git
 cd ursa
 mvn -B -ntp clean install -DskipTests    # build and install every module
 mvn -B -ntp test -pl ursa-storage-core   # test one module
 ```
 
 On Windows, the `CLAUDE.md` files in this repository are symbolic links. Clone with
-`git clone -c core.symlinks=true https://github.com/lakestream-io/ursa.git`. Creating symlinks also
+`git clone -c core.symlinks=true https://github.com/openlakestream/ursa.git`. Creating symlinks also
 requires Developer Mode or administrator rights.
 
 Some groups of tests are tagged so that CI can run them in separate jobs. CI runs everything else

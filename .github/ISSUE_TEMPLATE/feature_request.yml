@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Open-ended ideas are often easier to explore in
-        [Discussions](https://github.com/lakestream-io/ursa/discussions/categories/ideas) first.
+        [Discussions](https://github.com/openlakestream/ursa/discussions/categories/ideas) first.
         To propose a new materializer, use the "New materializer proposal" form instead.
   - type: textarea
     id: problem
@@ -31,7 +31,7 @@ body:
       label: Does this change a public contract?
       description: >-
         Changes to public types in lakestream-api, an SPI contract, or the on-object/WAL format need a
-        LIP (see https://github.com/lakestream-io/lips).
+        LIP (see https://github.com/openlakestream/lips).
       options:
         - "No"
         - "Yes, it changes lakestream-api, an SPI contract, or a storage format"
