@@ -287,8 +287,8 @@ public final class ClickHouseTableMaterializer implements TableMaterializer<Gene
     @Override
     public CommitResult commit() {
         if (committed.get()) {
-            // Idempotent: T11 chooses to return a zero-record CommitResult so the framework's
-            // retry path is a no-op rather than double-flushing the (already empty) buffer.
+            // Idempotent: return a zero-record CommitResult so the framework's retry path is a
+            // no-op rather than double-flushing the (already empty) buffer.
             return new CommitResult(0L, 0L, Map.of(
                     "clickhouse.engine", engine.name(),
                     "clickhouse.idempotent", "true"));
