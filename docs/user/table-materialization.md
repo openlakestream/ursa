@@ -263,8 +263,8 @@ The default is `none`.
 
 ## See Also
 
-- [LIP-161: Table Materialization Framework](../lip/LIP-161-Table-Materialization-Framework.md)
+- [LIP-161: Table Materialization Framework](https://github.com/lakestream-io/lips/blob/main/proposals/LIP-161-Table-Materialization-Framework.md)
 - [Write a materializer](../developer/materializer-guide.md)
-- [Compaction Orchestration Flow](../../ursa-storage-compact/AGENTS.md#orchestration-flow-t10)
+- [Compaction Orchestration Flow](../../ursa-storage-compact/AGENTS.md#orchestration-flow)
 - [ClickHouse module notes](../../ursa-storage-clickhouse/AGENTS.md)
 - [Lakehouse materializer adapter notes](../../ursa-storage-lakehouse/AGENTS.md)

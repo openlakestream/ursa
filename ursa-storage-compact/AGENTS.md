@@ -3,7 +3,7 @@
 Compaction orchestration. 8 Java files in main (including `package-info.java`), 9 in test.
 
 Coordinates WAL → Compacted Object compaction across the cluster, plus
-sink-neutral materialization dispatch via the T10 `MaterializationService` SPI.
+sink-neutral materialization dispatch via the `MaterializationService` SPI.
 
 ## Key Classes
 
@@ -22,7 +22,7 @@ io.lakestream.ursa.compact        — Main compaction (4 classes)
 io.lakestream.ursa.compact.elect  — Leader election (2 classes)
 ```
 
-## Orchestration Flow (T10)
+## Orchestration Flow
 
 ```
 CompactionScheduler.start()

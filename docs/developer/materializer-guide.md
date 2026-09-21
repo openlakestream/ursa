@@ -12,8 +12,9 @@ Ursa ships materializers for Apache Iceberg, Delta Lake (including Delta on Unit
 ClickHouse. This guide shows you how to write one for a destination that Ursa doesn't support yet.
 
 The design behind the framework is in
-[LIP-161](../lip/LIP-161-Table-Materialization-Framework.md). For how users configure
-materialization, see [Materialize a stream to a table](../user/table-materialization.md).
+[LIP-161](https://github.com/lakestream-io/lips/blob/main/proposals/LIP-161-Table-Materialization-Framework.md).
+For how users configure materialization, see
+[Materialize a stream to a table](../user/table-materialization.md).
 
 ## Before you start
 
@@ -21,8 +22,9 @@ materialization, see [Materialize a stream to a table](../user/table-materializa
   artifacts. This repository keeps the Iceberg, Delta and ClickHouse materializers.
 - **Every new materializer needs a LIP.** Start with the
   [New materializer proposal](https://github.com/lakestream-io/ursa/issues/new?template=materializer_proposal.yml)
-  form. Then write the LIP, following [docs/lip](../lip/README.md). The template has a section for
-  materializers.
+  form. Then write the LIP in [lakestream-io/lips](https://github.com/lakestream-io/lips), following
+  its [contributing guide](https://github.com/lakestream-io/lips/blob/main/CONTRIBUTING.md). The
+  template has a section for materializers.
 - **You also need a small pull request here.** In Ursa 1.0, the materializer type is a closed enum
   in `lakestream-api` (`TableCatalogType`), and the compactor's code switches on it. Each new materializer
   therefore adds a constant and a few `case` lines to this repository. The

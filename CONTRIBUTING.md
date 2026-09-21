@@ -53,7 +53,10 @@ read them.
     compacted objects it's rewritten into), or to serialized field numbers and identifiers
   - every new materializer
 
-  See [docs/lip](docs/lip/README.md) for the process and the template.
+  LIPs for every Lakestream component live in
+  [lakestream-io/lips](https://github.com/lakestream-io/lips). See its
+  [contributing guide](https://github.com/lakestream-io/lips/blob/main/CONTRIBUTING.md) for the
+  process and the template.
 
 ## Build and test
 

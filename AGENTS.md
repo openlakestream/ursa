@@ -159,7 +159,7 @@ a Docker Compose stack. Start Docker and check the daemon with `docker info` bef
 
 - Adding or upgrading a dependency.
 - Changing public types in `lakestream-api`, an SPI contract, or the on-object or WAL format. These
-  also need a LIP ([docs/lip](docs/lip/README.md)).
+  also need a LIP ([lakestream-io/lips](https://github.com/lakestream-io/lips)).
 - Adding or renaming configuration keys.
 - Creating a module.
 - Changing anything under `.github/workflows`.
@@ -184,9 +184,10 @@ a Docker Compose stack. Start Docker and check the daemon with `docker info` bef
 - [Common pitfalls](docs/agent/common-pitfalls.md)
 - [Error remediation](docs/agent/error-remediation.md): fixes for common build failures
 - [Contributing](CONTRIBUTING.md) and the [AI policy](AI_POLICY.md)
-- [LIP process](docs/lip/README.md)
+- [LIP process](https://github.com/lakestream-io/lips/blob/main/CONTRIBUTING.md): LIPs for every
+  Lakestream component live in lakestream-io/lips
 - [Build locally](docs/developer/build.md)
 - [Third-party license notes](docs/developer/third-party-licenses.md)
 - [Concepts](docs/concepts.md)
 - [Table materialization](docs/user/table-materialization.md)
-- [Materialization design (LIP-161)](docs/lip/LIP-161-Table-Materialization-Framework.md)
+- [Materialization design (LIP-161)](https://github.com/lakestream-io/lips/blob/main/proposals/LIP-161-Table-Materialization-Framework.md)
