@@ -65,7 +65,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Orchestrates compaction across the cluster.
  *
- * <p>T10 lifted the integration-specific wiring out of this class. The scheduler
+ * <p>The integration-specific wiring was lifted out of this class. The scheduler
  * now drives:
  * <ul>
  *   <li>A reflectively-loaded {@link CompactionStorageBindings} for the
@@ -310,7 +310,7 @@ public class CompactionScheduler {
     /**
      * Resolves the class name used for the legacy {@link CompactionService} indirection. The
      * field still drives WAL → CO compaction; the new {@code materializationServiceClass} key
-     * drives the materialization side of T10.
+     * drives the materialization side.
      */
     private static String resolveCompactionServiceClass(StorageConfig storageConfig) {
         return storageConfig.getCompactionServiceClass();
@@ -382,8 +382,8 @@ public class CompactionScheduler {
 
     /**
      * Wraps the existing {@link CompactionMetrics} as a {@link MaterializationMetrics} so the
-     * runtime constructor is satisfied. For T10 the metrics are noop-passthrough; T14 will tie
-     * them to real OpenTelemetry instruments.
+     * runtime constructor is satisfied. The metrics are noop-passthrough until they are tied
+     * to real OpenTelemetry instruments.
      */
     private static MaterializationMetrics bridgeMetrics(CompactionMetrics ignored) {
         return MaterializationMetrics.noop();
@@ -483,7 +483,7 @@ public class CompactionScheduler {
     }
 
     // Leadership-gated commit runner, built via the storage bindings so this module stays free of
-    // direct integration-package imports (T10). The bindings thread isLeader into CompactedTaskRunner.
+    // direct integration-package imports. The bindings thread isLeader into CompactedTaskRunner.
     public StartStopRunner getCommitRunner(BooleanSupplier isLeader) {
         return storageBindings.createCompactedTaskRunner(isLeader);
     }

@@ -58,7 +58,7 @@ class MaterializationExceptionTest {
     }
 
     /**
-     * Integration contract: T10's CompactionWorker pattern-matches on the existing
+     * Integration contract: CompactionWorker pattern-matches on the existing
      * {@code RuntimeExceptionWithCode} / {@code ExceptionWithCode} hierarchy. Locking
      * this in so a future refactor of the exception type does not silently break
      * code-aware retry / quarantine routing.

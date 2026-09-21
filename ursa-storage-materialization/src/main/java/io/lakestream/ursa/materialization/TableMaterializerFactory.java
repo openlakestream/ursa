@@ -18,7 +18,7 @@ import javax.annotation.Nullable;
  * iterates the {@link java.util.ServiceLoader}-loaded factories and dispatches
  * on {@link #catalogType()}. Implementations register themselves via
  * {@code META-INF/services/io.lakestream.ursa.materialization.TableMaterializerFactory}
- * in their own module (lakehouse for T8, clickhouse for T11), not in this
+ * in their own module (lakehouse, clickhouse), not in this
  * module.
  */
 public interface TableMaterializerFactory {

@@ -35,7 +35,7 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <p>Holds the concrete wiring for the lakehouse-specific compaction runners
  * (publish-compact-task, compacted-task, cleaner, cleanup-handler). Constructed
- * by {@code CompactionScheduler} at startup (T10); each {@code create*} method
+ * by {@code CompactionScheduler} at startup; each {@code create*} method
  * returns a fresh runner instance that the orchestrator drives via
  * {@link StartStopRunner#start()} / {@link StartStopRunner#stop()}.
  *
@@ -162,8 +162,8 @@ public final class LakehouseCompactionStorageBindings implements CompactionStora
 
     /**
      * Bag of dependencies the lakehouse runners need. Mirrors the fields the current
-     * {@code CompactionScheduler} already constructs; T10 will plumb this object directly from
-     * the scheduler.
+     * {@code CompactionScheduler} already constructs; it can plumb this object directly from
+     * the scheduler later.
      */
     public static final class Dependencies {
         private final StorageConfig config;

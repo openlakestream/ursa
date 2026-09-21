@@ -57,7 +57,7 @@ import lombok.extern.slf4j.Slf4j;
  *       {@link BootstrapResult#skipped()}.</li>
  * </ul>
  *
- * <p>For T7 everything parsed under a single catalog group is stored in
+ * <p>Everything parsed under a single catalog group is stored in
  * {@link TableCatalog#connection()}; {@link TableCatalog#properties()} stays empty.
  * Future tasks can refine the connection/properties split if needed.
  *

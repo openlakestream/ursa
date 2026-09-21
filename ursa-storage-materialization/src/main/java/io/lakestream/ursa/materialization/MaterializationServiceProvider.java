@@ -8,7 +8,7 @@ package io.lakestream.ursa.materialization;
  * Small utility that reflectively loads a {@link MaterializationService}
  * implementation by class name.
  *
- * <p>The orchestrator (T10) reads a deployment-supplied class name from config
+ * <p>The orchestrator reads a deployment-supplied class name from config
  * (analogous to today's {@code compactionServiceClass}) and asks this provider
  * to instantiate it via the public no-arg constructor. The instance is then
  * initialized by the caller through

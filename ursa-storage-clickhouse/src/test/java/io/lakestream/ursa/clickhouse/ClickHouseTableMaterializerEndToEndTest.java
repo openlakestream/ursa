@@ -242,7 +242,7 @@ class ClickHouseTableMaterializerEndToEndTest {
     void namespacePolicyMaterializesAllStreams() throws Exception {
         // Simulate a namespace-level policy by using the same TableNaming template
         // to derive three TableIdentifiers from three StreamIdentifiers. The
-        // orchestrator (T10) performs the full resolution; here we exercise the
+        // orchestrator performs the full resolution; here we exercise the
         // contract at the materializer + naming layer.
         TableNaming naming = new TableNaming(Optional.empty(), "ns_${stream.name}");
         TableMaterializationPolicy namespacePolicy = E2EHelpers.namespacePolicy(naming);

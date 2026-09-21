@@ -10,7 +10,7 @@ import io.lakestream.api.materialization.EvolutionPolicy;
  * Pluggable sink contract for stream-to-table materialization.
  *
  * <p>Implementations are built by a {@link TableMaterializerFactory} and
- * called by the orchestrator (T9 / T10) for each batch of records to write.
+ * called by the orchestrator for each batch of records to write.
  * The {@code R} type is the sink-side record type — Delta-Kernel {@code Row},
  * Iceberg {@code GenericRecord}, ClickHouse {@code Map<String,Object>}, etc.
  * Callers above the factory layer see {@code TableMaterializer<?>} and never

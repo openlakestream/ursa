@@ -119,7 +119,7 @@ public class CompactionSchedulerWiringTest {
         Properties props = new Properties();
         // Caller still sets the legacy key with the historical default; the resolver should
         // map it to the new default (LakehouseMaterializationService) rather than the
-        // pre-T10 LakehouseCompactionServiceImpl.
+        // legacy LakehouseCompactionServiceImpl.
         props.setProperty("compactionServiceClass",
                 "io.lakestream.ursa.lakehouse.compact.LakehouseCompactionServiceImpl");
         config.setProperties(props);

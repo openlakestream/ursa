@@ -34,7 +34,7 @@ import javax.annotation.Nullable;
  *
  * <p>Registered via {@code META-INF/services/io.lakestream.ursa.materialization.TableMaterializerFactory}
  * so {@code LakehouseMaterializationService}'s {@link java.util.ServiceLoader}-based dispatch
- * (T9/T10) picks it up automatically when a stream's effective materialization resolves to a
+ * picks it up automatically when a stream's effective materialization resolves to a
  * ClickHouse catalog.
  */
 public final class ClickHouseTableMaterializerFactory implements TableMaterializerFactory {

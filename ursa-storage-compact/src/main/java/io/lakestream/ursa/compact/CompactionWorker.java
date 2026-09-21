@@ -39,7 +39,7 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Per-thread compaction worker invoked by {@code CompactionScheduler}.
  *
- * <p>T10 collapses the lakehouse-coupled control flow into a sink-neutral path:
+ * <p>The lakehouse-coupled control flow is collapsed into a sink-neutral path:
  * <ul>
  *   <li>The internal WAL → Compacted Object compaction is still dispatched through
  *       {@link CompactionService#compactStream(CompactStreamTask)}.</li>
@@ -48,14 +48,14 @@ import lombok.extern.slf4j.Slf4j;
  *       policy, the worker hands the task to
  *       {@link MaterializationService#materialize(MaterializationTask)}.</li>
  *   <li>On {@link MaterializationException} the worker reads the carried
- *       {@link ExceptionCode} (T5 polish) and uses the same retry / quarantine
+ *       {@link ExceptionCode} and uses the same retry / quarantine
  *       logic previously gated on lakehouse exception subclasses. Non-retryable
  *       codes also call {@link MaterializationService#invalidate(StreamIdentifier)}
  *       so the sink can drop cached writer state.</li>
  * </ul>
  *
- * <p>This class no longer imports any integration-package class — verified by
- * the grep gate in T10.
+ * <p>This class no longer imports any integration-package class. No build step
+ * enforces that yet; grep {@code ursa-storage-compact/src/main} to check.
  */
 @Slf4j
 public class CompactionWorker implements Runnable {

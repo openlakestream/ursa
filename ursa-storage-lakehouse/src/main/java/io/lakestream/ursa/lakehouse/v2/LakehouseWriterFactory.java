@@ -41,8 +41,8 @@ import java.util.Properties;
  * {@link TableMaterializationPolicy#connectionOverrides() per-stream overrides} on top, and then
  * builds a {@link LakehouseConfiguration} that the existing writers can consume unchanged.
  *
- * <p>This is an explicit T8 trade-off: T8 lands the adapter; refactoring
- * {@code LakehouseConfiguration} to consume {@code TableCatalog} natively belongs to T9.
+ * <p>This is an explicit trade-off: the adapter landed first; refactoring
+ * {@code LakehouseConfiguration} to consume {@code TableCatalog} natively comes later.
  */
 public final class LakehouseWriterFactory {
 
