@@ -49,3 +49,6 @@ ursa-storage-test/etc/*
 
 ### Maven backup files
 *.versionsBackup
+
+### Claude Code worktrees
+.claude/worktrees/
