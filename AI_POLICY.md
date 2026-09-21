@@ -102,6 +102,10 @@ other, so we ask that they come from you:
 The same rules apply to maintainers. AI review tools are a second pair of eyes, not an approval. A
 maintainer reads and approves every change that merges.
 
+Triggering a tool on a pull request runs it against that pull request's code: it builds what the
+branch contains, and it follows the agent instructions the branch carries. Only trigger AI tools on
+pull requests whose changes you have read, including build files and the `AGENTS.md` files.
+
 ## Why we ask
 
 Review is the scarcest resource in an open source project. Disclosure tells reviewers where to look
