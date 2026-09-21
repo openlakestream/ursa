@@ -1,6 +1,6 @@
 # ursa-storage-clickhouse
 
-ClickHouse sink for the table materialization framework. Implements the
+ClickHouse sink for the stream materialization framework. Implements the
 `TableMaterializer` SPI defined in `ursa-storage-materialization` and is
 discovered by the orchestrator via `ServiceLoader`.
 

@@ -1,6 +1,6 @@
 # Common Pitfalls
 
-Hard-won knowledge to avoid repeated failures when working on ursa-storage.
+Hard-won knowledge to avoid repeated failures when working on Ursa.
 
 ## Build Pitfalls
 

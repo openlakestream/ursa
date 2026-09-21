@@ -16,7 +16,7 @@
   </parent>
 
   <artifactId>ursa-storage-kafka-runtime</artifactId>
-  <name>Lakestream :: Ursa Storage :: Kafka Runtime</name>
+  <name>Lakestream :: Ursa :: Kafka Runtime</name>
   <description>Ursa-owned Lakestream runtime bootstrap for Kafka record storage</description>
 
   <dependencies>

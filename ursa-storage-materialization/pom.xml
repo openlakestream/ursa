@@ -16,7 +16,7 @@
   </parent>
 
   <artifactId>ursa-storage-materialization</artifactId>
-  <name>Lakestream :: Ursa Storage :: Materialization</name>
+  <name>Lakestream :: Ursa :: Materialization</name>
 
   <properties>
     <maven.compiler.source>17</maven.compiler.source>

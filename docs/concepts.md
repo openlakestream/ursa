@@ -1,16 +1,16 @@
-# Ursa Storage Concepts
+# Ursa Concepts
 
-This document provides definitions for key terms and concepts used in Ursa Storage, a lakehouse-native streaming storage. The detailed design can be found in the [Ursa paper](https://www.vldb.org/pvldb/vol18/p5184-guo.pdf).
+This document provides definitions for key terms and concepts used in Ursa, a storage engine that implements [Lakestream](https://openlakestream.org). The detailed design can be found in the [Ursa paper](https://www.vldb.org/pvldb/vol18/p5184-guo.pdf).
 
 ## Core Concepts
 
 ### Event, Message, or Record
 
-An event is an individual unit of data in a stream. This unit is also referred to as a **Record** or **Message**. Events are the fundamental data entities that move through event brokers and are ultimately persisted in Ursa storage.
+An event is an individual unit of data in a stream. This unit is also referred to as a **Record** or **Message**. Events are the fundamental data entities that move through event brokers and are ultimately persisted in Ursa.
 
 ### Entry, Records, or RecordBatch
 
-An entry (also known as a batch of records or RecordBatch) is a collection of multiple records or messages grouped together for efficient processing and storage. In Ursa Storage, an entry serves as the unit of storage atomicity—every event within a batch is committed and stored together. Batching is typically performed on the client side before writing to the storage layer. Compression algorithms are often applied to these batches to further reduce storage requirements. This approach improves throughput and minimizes overhead within Ursa Storage.
+An entry (also known as a batch of records or RecordBatch) is a collection of multiple records or messages grouped together for efficient processing and storage. In Ursa, an entry serves as the unit of storage atomicity—every event within a batch is committed and stored together. Batching is typically performed on the client side before writing to the storage layer. Compression algorithms are often applied to these batches to further reduce storage requirements. This approach improves throughput and minimizes overhead within Ursa.
 
 ### Log
 
@@ -44,11 +44,11 @@ files are not registered in table catalogs, and their retention is independent o
 
 ## Schema
 
-Each log (or stream) in Ursa Storage can be linked to a schema managed by an external schema registry. Ursa Storage uses this schema information to efficiently transform records from row-based serialization formats to columnar storage formats. Additionally, it utilizes schema compatibility modes to safely evolve the structure of the underlying lakehouse tables over time.
+Each log (or stream) in Ursa can be linked to a schema managed by an external schema registry. Ursa uses this schema information to efficiently transform records from row-based serialization formats to columnar storage formats. Additionally, it utilizes schema compatibility modes to safely evolve the structure of the underlying lakehouse tables over time.
 
 ## Table Formats
 
-Ursa Storage leverages the open table formats for organizing compacted data, primarily Apache Iceberg or Delta Lake. These formats provide:
+Ursa leverages the open table formats for organizing compacted data, primarily Apache Iceberg or Delta Lake. These formats provide:
 - ACID transactions
 - Schema evolution
 - Time travel and versioning
@@ -67,11 +67,11 @@ See [Lakehouse Tables](./lakehouse-tables.md) for more details.
 
 ## System Components
 
-Ursa Storage is composed of the following key components:
+Ursa is composed of the following key components:
 
 ### Stream Catalog Service
 
-The Stream Catalog Service (SCS) is a centralized metadata service responsible for offset assignment, offset index management, log and stream metadata, and additional metadata such as transaction state management. By delegating these tasks to a dedicated service, Ursa Storage enables a leaderless architecture, eliminating the need for brokers to perform leader-based coordination. This design ensures consistent offset ordering for each topic-partition and simplifies failover scenarios.
+The Stream Catalog Service (SCS) is a centralized metadata service responsible for offset assignment, offset index management, log and stream metadata, and additional metadata such as transaction state management. By delegating these tasks to a dedicated service, Ursa enables a leaderless architecture, eliminating the need for brokers to perform leader-based coordination. This design ensures consistent offset ordering for each topic-partition and simplifies failover scenarios.
 
 ### Stream Storage Service
 

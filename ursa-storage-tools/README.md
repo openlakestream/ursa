@@ -1,6 +1,6 @@
-# Ursa Storage Tools
+# Ursa Tools
 
-This module provides a comprehensive suite of command-line tools for operating and testing Ursa Storage. It includes administrative utilities for managing streams and compaction tasks, performance benchmarking tools for measuring throughput and latency, and diagnostic tools for troubleshooting storage issues.
+This module provides a comprehensive suite of command-line tools for operating and testing Ursa. It includes administrative utilities for managing streams and compaction tasks, performance benchmarking tools for measuring throughput and latency, and diagnostic tools for troubleshooting storage issues.
 
 ## Pre-requisites
 - Java 17
@@ -12,8 +12,8 @@ You can follow the instructions to set up a local Oxia Cluster [here](https://gi
 
 ## Build
 ```bash
-$ git clone git@github.com:lakestream-io/ursa-storage.git
-$ cd ursa-storage
+$ git clone git@github.com:lakestream-io/ursa.git
+$ cd ursa
 $ mvn -T 3C clean install -DskipTests
 ```
 
@@ -21,8 +21,8 @@ After build, you can find the performance test tools in the `ursa-storage-tools/
 
 ## Performance Test Tools
 The Performance test tool contains the following components:
-- Performance Producer: A tool to produce messages to Ursa storage.
-- Performance Consumer: A tool to consume messages from Ursa storage.
+- Performance Producer: A tool to produce messages to Ursa.
+- Performance Consumer: A tool to consume messages from Ursa.
 
 ### Performance Producer
 Performance Producer Usage:
@@ -75,7 +75,7 @@ Usage: ursa-storage-produce-perf [options]
       Default: 30
 ```
 
-You can configure the ursa-storage lib configurations in `conf/ursa-storage.conf` file.
+You can configure the Ursa library in the `conf/ursa-storage.conf` file.
 
 One example to run the performance producer:
 ```bash
@@ -137,7 +137,7 @@ Supported features:
 - Fetch messages from multiple streams concurrently.
 - Keeps track of the last consumed message and start consuming from there.
 
-You can configure the ursa-storage lib configurations in `conf/ursa-storage.conf` file.
+You can configure the Ursa library in the `conf/ursa-storage.conf` file.
 
 One example to run the performance producer:
 ```bash

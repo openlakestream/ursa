@@ -1,8 +1,10 @@
-# Ursa Storage: A lakehouse-native streaming storage
+# Ursa
 
 **Stream as a storage primitive for the lakehouse paradigm**
 
-Ursa Storage introduces log and stream as first-class storage primitives for the lakehouse paradigm, turning any object, block, or file store into stream storage. It augments existing lakehouse architectures by unifying real-time data streaming and efficient analytical access on the same data—without brokers or protocol coupling. The result is a simple, powerful, developer-friendly abstraction that adds data streaming capabilities to modern data platforms while remaining open, portable, and easy to adopt.
+Ursa is a storage engine that implements [Lakestream](https://openlakestream.org), an open API and specification for stream storage on object storage, with a stream materialization framework that defines how a stream becomes a lakehouse table. Ursa turns any object, block, or file store into stream storage, and it materializes streams into lakehouse tables and other queryable states.
+
+Ursa 1.0 is published to Maven Central under the `org.openlakestream` group; the [quickstart](https://openlakestream.org/docs/ursa/quickstart) embeds it in a Java program. It is built to be embedded in messaging brokers: [Ursa for Apache Kafka (UFK)](https://github.com/lakestream-io/kafka) is a Kafka distribution built on the Lakestream API and specification that stores its diskless topics through Ursa.
 
 ## Principles
 
@@ -19,7 +21,7 @@ files and lifecycle are independent of internal stream storage.
 By turning any object, block, or file store into shared log or stream storage, Ursa enables diskless event-streaming integrations without coupling the storage engine to a broker protocol. This provides:
 
 - No single point of failure or bottleneck for partitions
-- Reduced cross-AZ network traffic (up to 10x cost reduction)
+- Reduced cross-AZ network traffic
 - Lower operational complexity (no leader elections or rebalancing)
 - Rebalance-free architecture for event brokers
 
@@ -35,7 +37,7 @@ the delivered copy through the destination table's APIs.
 - **Multi-Cloud Support**: AWS S3, Google Cloud Storage, Azure Blob Storage
 - **Lakehouse Integration**: Delta Lake and Apache Iceberg with multi-catalog support
 - **High Performance**: Read/write caching, batching, and prefetching optimizations
-- **Production-Ready**: Comprehensive metrics, observability, and distributed coordination
+- **Observability**: Metrics for the storage and compaction paths (see [Metrics](docs/Metrics.md))
 
 ## Concepts & Architecture
 
@@ -54,7 +56,7 @@ the delivered copy through the destination table's APIs.
 | `ursa-storage-materialization` | Stream-to-table materialization SPI and Kafka codecs |
 | [ursa-storage-lakehouse](ursa-storage-lakehouse/README.md) | Lakehouse integration with catalog support |
 | [ursa-storage-lakehouse-kafka-reader](ursa-storage-lakehouse-kafka-reader/README.md) | Isolated Kafka compacted-data reader |
-| [ursa-storage-kafka-runtime](ursa-storage-kafka-runtime/README.md) | Leaf runtime that wires Lakestream storage and Kafka compacted reads |
+| [ursa-storage-kafka-runtime](ursa-storage-kafka-runtime/README.md) | Leaf runtime that wires Ursa and Kafka compacted reads behind the Lakestream API |
 | `ursa-storage-clickhouse` | ClickHouse materialization sink |
 | [ursa-storage-compact](ursa-storage-compact/README.md) | Distributed compaction service |
 | [ursa-storage-containers](ursa-storage-containers/README.md) | Test infrastructure and testcontainers |
@@ -71,13 +73,14 @@ See [Contributing Guide](CONTRIBUTING.md) for information on how to contribute t
 
 ## Support
 
-- **Issues**: Report bugs and feature requests on GitHub Issues
+- **Issues**: Report bugs and feature requests on [GitHub Issues](https://github.com/lakestream-io/ursa/issues)
 - **Documentation**: See [docs/](docs/) for detailed guides
-- **Community**: Join the Lakestream community
+- **Questions**: Ask in [GitHub Discussions](https://github.com/lakestream-io/ursa/discussions)
+- **Specification**: The Lakestream API and specification are documented at [openlakestream.org](https://openlakestream.org)
 
 ## License
 
-Ursa Storage is licensed under the [Apache License, Version 2.0](LICENSE).
+Ursa is licensed under the [Apache License, Version 2.0](LICENSE).
 
 The binary distribution contains only Apache 2.0 and other permissively licensed third-party jars.
 JSON Schema and Protobuf records are decoded without the Confluent Community License provider

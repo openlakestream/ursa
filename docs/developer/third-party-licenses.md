@@ -1,6 +1,6 @@
 # Third-party license notes
 
-Ursa Storage itself is licensed under Apache License 2.0. This page records third-party
+Ursa itself is licensed under Apache License 2.0. This page records third-party
 dependencies whose license differs from Apache 2.0 and how the repository keeps them out of the
 binary distribution.
 

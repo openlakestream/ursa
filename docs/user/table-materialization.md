@@ -1,6 +1,6 @@
 # Materialize a Stream to a Table
 
-Ursa Storage can materialize a stream into an external table for analytics
+Ursa can materialize a stream into an external table for analytics
 consumption. The framework supports Apache Iceberg, Delta Lake, Delta on
 Unity Catalog, and ClickHouse out of the box.
 

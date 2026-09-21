@@ -16,7 +16,7 @@
   </parent>
 
   <artifactId>ursa-storage-lakehouse-kafka-reader</artifactId>
-  <name>Lakestream :: Ursa Storage :: Lakehouse Kafka Reader</name>
+  <name>Lakestream :: Ursa :: Lakehouse Kafka Reader</name>
   <description>Isolated Kafka V2 KAFKA_BATCHED_RAW_PARQUET compacted-object reader</description>
 
   <properties>

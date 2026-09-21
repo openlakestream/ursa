@@ -16,7 +16,7 @@
   </parent>
 
   <artifactId>ursa-storage-clickhouse</artifactId>
-  <name>Lakestream :: Ursa Storage :: ClickHouse</name>
+  <name>Lakestream :: Ursa :: ClickHouse</name>
 
   <properties>
     <maven.compiler.source>17</maven.compiler.source>

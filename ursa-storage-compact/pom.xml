@@ -14,7 +14,7 @@
   </parent>
 
   <artifactId>ursa-storage-compact</artifactId>
-  <name>Lakestream :: Ursa Storage :: Compact</name>
+  <name>Lakestream :: Ursa :: Compact</name>
 
   <properties>
     <maven.compiler.source>17</maven.compiler.source>

@@ -16,7 +16,7 @@
     </parent>
 
     <artifactId>ursa-storage-containers</artifactId>
-    <name>Lakestream :: Ursa Storage :: Containers</name>
+    <name>Lakestream :: Ursa :: Containers</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
