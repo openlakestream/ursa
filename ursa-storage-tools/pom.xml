@@ -16,7 +16,7 @@
   </parent>
 
   <artifactId>ursa-storage-tools</artifactId>
-  <name>Lakestream :: Ursa Storage :: Tools</name>
+  <name>Lakestream :: Ursa :: Tools</name>
 
 
   <properties>

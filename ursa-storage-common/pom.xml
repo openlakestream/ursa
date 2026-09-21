@@ -16,7 +16,7 @@
   </parent>
 
   <artifactId>ursa-storage-common</artifactId>
-  <name>Lakestream :: Ursa Storage :: Common</name>
+  <name>Lakestream :: Ursa :: Common</name>
 
   <properties>
     <maven.compiler.source>17</maven.compiler.source>

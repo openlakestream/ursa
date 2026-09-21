@@ -16,7 +16,7 @@
   </parent>
 
   <artifactId>ursa-storage-test</artifactId>
-  <name>Lakestream :: Ursa Storage :: Tests</name>
+  <name>Lakestream :: Ursa :: Tests</name>
 
   <properties>
     <maven.javadoc.skip>true</maven.javadoc.skip>

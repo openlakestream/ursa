@@ -1,4 +1,4 @@
-# Ursa Storage: instructions for coding agents
+# Ursa: instructions for coding agents
 
 This file is for AI coding agents such as Claude Code, Codex, Copilot and Cursor. People should start
 with [CONTRIBUTING.md](CONTRIBUTING.md).

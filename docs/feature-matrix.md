@@ -27,7 +27,7 @@ Each feature below lists supported options as columns. ✔ = Supported  ✖ 
 
 ### WAL Storage
 
-Currently Ursa Storage supports the following storage as WAL storage.
+Currently Ursa supports the following storage as WAL storage.
 
 **Latency Optimized**
 
@@ -49,7 +49,7 @@ Currently Ursa Storage supports the following storage as WAL storage.
 
 ## Schema
 
-Ursa Storage supports Kafka schemas for materialization.
+Ursa supports Kafka schemas for materialization.
 
 ### Kafka Schema
 

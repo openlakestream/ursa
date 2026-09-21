@@ -8,7 +8,7 @@ set -e
 
 version=${1#v}
 if [[ "$version" == "" ]]; then
-  echo "You need give a version number of the ursa storage"
+  echo "You need to give a version number for Ursa"
   exit 1
 fi
 

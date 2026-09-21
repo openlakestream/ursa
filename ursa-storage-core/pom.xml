@@ -16,7 +16,7 @@
 </parent>
 
 <artifactId>ursa-storage-core</artifactId>
-<name>Lakestream :: Ursa Storage :: Core</name>
+<name>Lakestream :: Ursa :: Core</name>
 
 <properties>
   <maven.compiler.source>17</maven.compiler.source>
