@@ -13,8 +13,7 @@ import com.tngtech.archunit.lang.ArchRule;
 
 /**
  * Architectural rules enforced mechanically via ArchUnit.
- * Ensures Iceberg and Delta table format packages remain isolated in v2 code.
- * Legacy v1 code has known cross-references that are not enforced here.
+ * Ensures Iceberg and Delta table format packages remain isolated.
  */
 @AnalyzeClasses(
         packages = "io.lakestream.ursa.lakehouse",
@@ -22,16 +21,16 @@ import com.tngtech.archunit.lang.ArchRule;
 class ArchitectureTest {
 
     @ArchTest
-    static final ArchRule V2_ICEBERG_DOES_NOT_DEPEND_ON_DELTA = noClasses()
-            .that().resideInAPackage("..v2.iceberg..")
+    static final ArchRule ICEBERG_DOES_NOT_DEPEND_ON_DELTA = noClasses()
+            .that().resideInAPackage("io.lakestream.ursa.lakehouse.iceberg..")
             .should().dependOnClassesThat()
-            .resideInAPackage("..v2.delta..")
-            .because("V2 Iceberg and Delta packages must remain isolated");
+            .resideInAPackage("io.lakestream.ursa.lakehouse.delta..")
+            .because("Iceberg and Delta packages must remain isolated");
 
     @ArchTest
-    static final ArchRule V2_DELTA_DOES_NOT_DEPEND_ON_ICEBERG = noClasses()
-            .that().resideInAPackage("..v2.delta..")
+    static final ArchRule DELTA_DOES_NOT_DEPEND_ON_ICEBERG = noClasses()
+            .that().resideInAPackage("io.lakestream.ursa.lakehouse.delta..")
             .should().dependOnClassesThat()
-            .resideInAPackage("..v2.iceberg..")
-            .because("V2 Delta and Iceberg packages must remain isolated");
+            .resideInAPackage("io.lakestream.ursa.lakehouse.iceberg..")
+            .because("Delta and Iceberg packages must remain isolated");
 }

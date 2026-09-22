@@ -5,8 +5,8 @@
 package io.lakestream.ursa.lakehouse.delta;
 
 import io.delta.kernel.types.StructType;
-import io.lakestream.ursa.lakehouse.iceberg.exception.SchemaEvolutionException;
-import io.lakestream.ursa.lakehouse.iceberg.exception.SchemaMappingException;
+import io.lakestream.ursa.lakehouse.schema.SchemaEvolutionException;
+import io.lakestream.ursa.lakehouse.schema.SchemaMappingException;
 import io.lakestream.ursa.materialization.serde.TableSchemaService;
 import java.util.HashSet;
 import java.util.Set;

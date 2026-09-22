@@ -39,7 +39,7 @@ import io.lakestream.ursa.lakehouse.LakehouseConfiguration;
 import io.lakestream.ursa.lakehouse.catalog.unity.DatabricksUnityCatalog;
 import io.lakestream.ursa.lakehouse.catalog.unity.MockUnityCatalog;
 import io.lakestream.ursa.lakehouse.catalog.unity.UnityCatalogApi;
-import io.lakestream.ursa.lakehouse.iceberg.exception.SchemaEvolutionException;
+import io.lakestream.ursa.lakehouse.schema.SchemaEvolutionException;
 import io.unitycatalog.client.model.StagingTableInfo;
 import java.io.IOException;
 import java.lang.reflect.Field;

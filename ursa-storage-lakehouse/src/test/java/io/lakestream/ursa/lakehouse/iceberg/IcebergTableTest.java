@@ -23,8 +23,8 @@ import static org.mockito.Mockito.spy;
 
 import io.lakestream.ursa.lakehouse.LakehouseConfiguration;
 import io.lakestream.ursa.lakehouse.exception.LakehouseException;
-import io.lakestream.ursa.lakehouse.iceberg.exception.SchemaEvolutionException;
-import io.lakestream.ursa.lakehouse.iceberg.exception.SchemaMappingException;
+import io.lakestream.ursa.lakehouse.schema.SchemaEvolutionException;
+import io.lakestream.ursa.lakehouse.schema.SchemaMappingException;
 import io.lakestream.ursa.lakehouse.utils.AvroSchemaUtilExtended;
 import io.lakestream.ursa.lakehouse.utils.TableNameFormatUtils;
 import io.lakestream.ursa.lakehouse.writer.ParquetFileStat;

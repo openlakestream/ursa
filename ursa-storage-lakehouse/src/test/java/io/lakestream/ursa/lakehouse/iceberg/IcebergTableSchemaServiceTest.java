@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import io.lakestream.ursa.lakehouse.LakehouseConfiguration;
-import io.lakestream.ursa.lakehouse.iceberg.exception.SchemaMappingException;
+import io.lakestream.ursa.lakehouse.schema.SchemaMappingException;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.HashSet;
