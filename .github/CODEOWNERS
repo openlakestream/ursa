@@ -1,1 +1,34 @@
-* @merlimat @hangc0276 @zymap @lhotari @horizonzy @codelipenghui @mattisonchao @BewareMyPower @RobertIndie
+# Code owners review pull requests that touch their paths.
+# The last matching pattern wins, so more specific paths come later in this file.
+
+# Every pull request needs a review from one of these.
+*                                   @merlimat @hangc0276 @zymap @lhotari @horizonzy @codelipenghui @mattisonchao @BewareMyPower @RobertIndie
+
+# The public API and its implementation: changes here change what every implementation must do.
+/lakestream-api/                    @merlimat @hangc0276 @codelipenghui
+/ursa-storage-lakestream/           @merlimat @hangc0276 @codelipenghui
+
+# The storage engine and on-object format: changes here are compatibility decisions.
+/ursa-storage-core/                 @merlimat @hangc0276 @horizonzy
+/ursa-storage-compact/              @hangc0276 @horizonzy
+
+# The stream materialization framework and its sinks.
+/ursa-storage-materialization/      @hangc0276 @codelipenghui
+/ursa-storage-lakehouse/            @hangc0276 @codelipenghui
+/ursa-storage-clickhouse/           @hangc0276 @codelipenghui
+
+# Documentation. Design proposals (LIPs) live in openlakestream/lips.
+/docs/                              @hangc0276 @codelipenghui
+
+# Licensing, governance, contributor and agent policy, and repository automation.
+/LICENSE                            @codelipenghui @merlimat
+/NOTICE                             @codelipenghui @merlimat
+/README.md                          @codelipenghui @merlimat
+/CONTRIBUTING.md                    @codelipenghui @merlimat
+/SECURITY.md                        @codelipenghui @merlimat
+/CODE_OF_CONDUCT.md                 @codelipenghui @merlimat
+/AI_POLICY.md                       @codelipenghui @merlimat
+/AGENTS.md                          @codelipenghui @merlimat
+/CLAUDE.md                          @codelipenghui @merlimat
+/.claude/                           @codelipenghui @merlimat
+/.github/                           @codelipenghui @merlimat

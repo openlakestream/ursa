@@ -2,7 +2,7 @@
 
 This artifact contains the compacted-object reader used by the Ursa Kafka integration:
 
-- artifact: `io.lakestream:ursa-storage-lakehouse-kafka-reader`
+- artifact: `org.openlakestream:ursa-storage-lakehouse-kafka-reader`
 - factory: `io.lakestream.ursa.kafka.reader.KafkaLakehouseReaderFactory`
 - supported format: `KAFKA_BATCHED_RAW_PARQUET`
 - supported storage backends: local files, S3/S3A, GCS, and Azure Data Lake Storage

@@ -24,7 +24,8 @@
  * {@code FailureMessageHandler}) round out the contract so sinks never have to
  * depend on lakehouse-specific observability or configuration code.
  *
- * <p>See {@code docs/lip/LIP-161-Table-Materialization-Framework.md} (added
- * in T15) for the design rationale.
+ * <p>See
+ * <a href="https://github.com/openlakestream/lips/blob/main/proposals/LIP-161-Table-Materialization-Framework.md">
+ * LIP-161: Table Materialization Framework</a> for the design rationale.
  */
 package io.lakestream.ursa.materialization;

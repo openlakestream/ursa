@@ -1,6 +1,6 @@
 # Performance Test
 
-This module provides a self-contained Helm deployment for running Ursa Storage performance tests. It deploys a single-node Oxia instance, an Ursa benchmark pod, and the configuration that connects them.
+This module provides a self-contained Helm deployment for running Ursa performance tests. It deploys a single-node Oxia instance, an Ursa benchmark pod, and the configuration that connects them.
 
 Oxia runs in `standalone` mode and initializes its `default` namespace automatically. This is suitable for development and benchmark orchestration, but it is not a production Oxia topology because it has no replication.
 

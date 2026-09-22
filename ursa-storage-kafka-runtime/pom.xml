@@ -10,33 +10,33 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>io.lakestream</groupId>
+    <groupId>org.openlakestream</groupId>
     <artifactId>ursa-storage</artifactId>
     <version>1.0.0</version>
   </parent>
 
   <artifactId>ursa-storage-kafka-runtime</artifactId>
-  <name>Lakestream :: Ursa Storage :: Kafka Runtime</name>
+  <name>Lakestream :: Ursa :: Kafka Runtime</name>
   <description>Ursa-owned Lakestream runtime bootstrap for Kafka record storage</description>
 
   <dependencies>
     <dependency>
-      <groupId>io.lakestream</groupId>
+      <groupId>org.openlakestream</groupId>
       <artifactId>lakestream-api</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>io.lakestream</groupId>
+      <groupId>org.openlakestream</groupId>
       <artifactId>ursa-storage-core</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>io.lakestream</groupId>
+      <groupId>org.openlakestream</groupId>
       <artifactId>ursa-storage-lakestream</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>io.lakestream</groupId>
+      <groupId>org.openlakestream</groupId>
       <artifactId>ursa-storage-lakehouse-kafka-reader</artifactId>
       <version>${project.version}</version>
     </dependency>

@@ -1,4 +1,4 @@
-# Ursa Storage module map
+# Ursa module map
 
 Use this map to choose the narrowest module for a change. The API, common,
 core, and lakestream layers are broker-protocol neutral.

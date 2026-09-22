@@ -49,8 +49,8 @@ jobs:
         with:
           path: |
             ~/.m2/repository/*/*/*
-            !~/.m2/repository/io/lakestream/ursa-storage*/**
-            !~/.m2/repository/io/lakestream/lakestream*/**
+            !~/.m2/repository/org/openlakestream/ursa-storage*/**
+            !~/.m2/repository/org/openlakestream/lakestream*/**
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-maven-
@@ -80,7 +80,7 @@ jobs:
 
       - name: Compress .m2 Ursa Storage artifacts
         run: |
-          tar -czf m2-ursa-storage.tar.gz -C ~/.m2/repository/io/lakestream $(find ~/.m2/repository/io/lakestream -mindepth 1 -maxdepth 1 -type d \( -name 'ursa-storage*' -o -name 'lakestream*' \) -exec basename {} \;)
+          tar -czf m2-ursa-storage.tar.gz -C ~/.m2/repository/org/openlakestream $(find ~/.m2/repository/org/openlakestream -mindepth 1 -maxdepth 1 -type d \( -name 'ursa-storage*' -o -name 'lakestream*' \) -exec basename {} \;)
 
       - name: Upload m2 ursa-storage artifact
         uses: actions/upload-artifact@v4
@@ -153,8 +153,8 @@ jobs:
         with:
           path: |
             ~/.m2/repository/*/*/*
-            !~/.m2/repository/io/lakestream/ursa-storage*/**
-            !~/.m2/repository/io/lakestream/lakestream*/**
+            !~/.m2/repository/org/openlakestream/ursa-storage*/**
+            !~/.m2/repository/org/openlakestream/lakestream*/**
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-maven-
@@ -166,9 +166,9 @@ jobs:
 
       - name: Extract m2 ursa-storage
         run: |
-          mkdir -p ~/.m2/repository/io/lakestream
-          tar -xzf m2-ursa-storage.tar.gz -C ~/.m2/repository/io/lakestream
-          ls -l ~/.m2/repository/io/lakestream
+          mkdir -p ~/.m2/repository/org/openlakestream
+          tar -xzf m2-ursa-storage.tar.gz -C ~/.m2/repository/org/openlakestream
+          ls -l ~/.m2/repository/org/openlakestream
 
       - name: Download project artifact
         uses: actions/download-artifact@v4

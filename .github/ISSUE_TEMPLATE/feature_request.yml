@@ -1,0 +1,40 @@
+name: Feature request
+description: Propose a new capability or a change in behavior.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Open-ended ideas are often easier to explore in
+        [Discussions](https://github.com/openlakestream/ursa/discussions/categories/ideas) first.
+        To propose a new materializer, use the "New materializer proposal" form instead.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the situation and what gets in your way today. Leave the solution for the next field.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What alternatives have you considered?
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Does this change a public contract?
+      description: >-
+        Changes to public types in lakestream-api, an SPI contract, or the on-object/WAL format need a
+        LIP (see https://github.com/openlakestream/lips).
+      options:
+        - "No"
+        - "Yes, it changes lakestream-api, an SPI contract, or a storage format"
+        - Not sure
+    validations:
+      required: true

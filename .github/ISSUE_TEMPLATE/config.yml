@@ -1,0 +1,17 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a question
+    url: https://github.com/openlakestream/ursa/discussions/categories/q-a
+    about: Questions about using or building Ursa belong in GitHub Discussions.
+  - name: Share an idea or discuss a design
+    url: https://github.com/openlakestream/ursa/discussions/categories/ideas
+    about: Open-ended ideas, and proposals before they become a LIP.
+  - name: Lakestream Improvement Proposals (LIPs)
+    url: https://github.com/openlakestream/lips
+    about: Accepted designs for every Lakestream component, and how to propose one.
+  - name: Report a security vulnerability
+    url: https://github.com/openlakestream/ursa/security/advisories/new
+    about: Please report security issues privately, not in a public issue. See SECURITY.md.
+  - name: Lakestream specification and documentation
+    url: https://openlakestream.org
+    about: The Lakestream API, specification, and user documentation.

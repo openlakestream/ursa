@@ -1,8 +1,8 @@
-# Developer Documentation for Ursa Storage WAL System
+# Developer Documentation for the Ursa WAL System
 
 ## Overview
 
-The Ursa Storage Write-Ahead Log (WAL) is a Java library that provides a high-performance, durable storage solution designed to use cloud storage (such as Amazon S3, Google Cloud Storage, or Azure Blob Storage) as the backend. The library implements a write-ahead logging pattern to ensure data durability while optimizing for performance through intelligent buffering, caching, and batching strategies.
+The Ursa Write-Ahead Log (WAL) is a Java library that provides a high-performance, durable storage solution designed to use cloud storage (such as Amazon S3, Google Cloud Storage, or Azure Blob Storage) as the backend. The library implements a write-ahead logging pattern to ensure data durability while optimizing for performance through intelligent buffering, caching, and batching strategies.
 
 This WAL library serves as the underlying storage layer for various distributed systems including:
 - Apache Kafka integration: For durable message storage
@@ -17,7 +17,7 @@ The WAL library is a critical component that provides:
 
 ## Architecture
 
-The Ursa Storage WAL system follows a layered architecture:
+The Ursa WAL system follows a layered architecture:
 
 1. **Interface Layer**: Defines the contract for WAL operations through the `WalStorage` interface
 2. **Implementation Layer**: Provides concrete implementations like `SimpleStorageImpl`
@@ -39,7 +39,7 @@ The Ursa Storage WAL system follows a layered architecture:
                               v
                      +-------+-------+     +---------------+
                      |               |     |               |
-                     | Ursa Storage  |<--->| Oxia Metadata |
+                     |     Ursa      |<--->| Oxia Metadata |
                      |  WAL Library  |     |   Service     |
                      +-------+-------+     +---------------+
                               |
@@ -62,7 +62,7 @@ The Ursa Storage WAL system follows a layered architecture:
                      +---------------+
 ```
 
-The diagram shows how the Ursa Storage WAL library serves as the underlying storage layer for various systems like Kafka integrations and other streaming systems. These systems interact with the WAL library through its API, while the library handles all the complexities of data persistence, caching, and cloud storage integration.
+The diagram shows how the Ursa WAL library serves as the underlying storage layer for various systems like Kafka integrations and other streaming systems. These systems interact with the WAL library through its API, while the library handles all the complexities of data persistence, caching, and cloud storage integration.
 
 ## Key Components
 
@@ -1092,7 +1092,7 @@ The WAL system exposes numerous metrics for monitoring:
 
 ## Conclusion
 
-The Ursa Storage WAL library provides a robust, high-performance Java solution for using cloud storage as a backend for write-ahead logging. By leveraging intelligent buffering, caching, and metadata management, it achieves both durability and performance, making it an ideal storage layer for systems like Kafka integrations and other streaming systems.
+The Ursa WAL library provides a robust, high-performance Java solution for using cloud storage as a backend for write-ahead logging. By leveraging intelligent buffering, caching, and metadata management, it achieves both durability and performance, making it an ideal storage layer for systems like Kafka integrations and other streaming systems.
 
 ### Key takeaways for developers:
 
@@ -1110,4 +1110,4 @@ The Ursa Storage WAL library provides a robust, high-performance Java solution f
 - Leveraging the prefetch capabilities for read-heavy workloads to optimize consumer performance
 - Configuring cloud storage parameters based on your cloud provider's recommendations and limitations
 
-The Ursa Storage WAL library abstracts away the complexities of durable storage, allowing messaging and streaming systems to focus on their core functionality while benefiting from reliable, scalable, and efficient data persistence.
+The Ursa WAL library abstracts away the complexities of durable storage, allowing messaging and streaming systems to focus on their core functionality while benefiting from reliable, scalable, and efficient data persistence.

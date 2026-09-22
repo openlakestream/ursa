@@ -6,7 +6,7 @@
 
 version=${1#v}
 if [[ "x$version" == "x" ]]; then
-  echo "You need to provide a version number for building ursa storage"
+  echo "You need to provide a version number for building Ursa"
   exit 1
 fi
 
