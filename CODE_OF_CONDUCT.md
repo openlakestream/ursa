@@ -10,7 +10,7 @@ and anywhere someone represents the project in public.
 
 ## Reporting a problem
 
-To report a possible violation, email **conduct@streamnative.io**. The project maintainers listed in
+To report a possible violation, email **conduct@openlakestream.org**. The project maintainers listed in
 [CODEOWNERS](.github/CODEOWNERS) read these reports and handle them confidentially.
 
 If your report concerns a maintainer, or you'd rather it didn't go to the whole maintainer group,
