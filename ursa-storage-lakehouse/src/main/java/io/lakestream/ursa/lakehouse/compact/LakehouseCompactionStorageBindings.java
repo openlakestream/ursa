@@ -120,11 +120,6 @@ public final class LakehouseCompactionStorageBindings implements CompactionStora
     }
 
     @Override
-    public Object getSchemaRegistry() {
-        return schemaRegistry;
-    }
-
-    @Override
     public Object schemaService() {
         KafkaSchemaService local = schemaService;
         if (local == null && schemaRegistry.client() != null) {

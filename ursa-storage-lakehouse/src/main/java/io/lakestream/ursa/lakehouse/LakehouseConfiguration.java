@@ -891,7 +891,7 @@ public class LakehouseConfiguration {
 
     /**
      * This configuration is used to enable the floor operation on the
-     * {@link io.lakestream.ursa.lakehouse.v2.io.parquet.IndexFileReader#seekBySecondaryIndex(String)}.
+     * {@link io.lakestream.ursa.lakehouse.io.parquet.IndexFileReader#seekBySecondaryIndex(String)}.
      * In Kafka case, it may read from the middle of the batch, but our secondary index built from the write batch
      * with the batched offset. When the reading from the middle, it can not read successfully because it can not
      * get the right index.

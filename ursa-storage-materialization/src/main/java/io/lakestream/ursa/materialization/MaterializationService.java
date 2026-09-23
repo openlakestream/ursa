@@ -21,8 +21,7 @@ import java.util.Optional;
 public interface MaterializationService extends AutoCloseable {
 
     /**
-     * Lifecycle hook called once at scheduler startup. Mirrors today's
-     * {@code CompactionService.initialize} signature in spirit.
+     * Lifecycle hook called once at scheduler startup.
      *
      * @param runtime injected framework services (schema service, evolution
      *                manager, executors, metrics, failure handler)
@@ -52,10 +51,9 @@ public interface MaterializationService extends AutoCloseable {
 
     /**
      * Resolves a {@link ResolvedMaterialization} for a stream directly from the compaction task's
-     * properties, for backward compatibility with deployments that drove materialization through task
-     * properties (legacy {@code DynamicConfigs} + catalog config) rather than a stream/namespace/cluster
-     * policy. {@code CompactionWorker} calls this as a fallback when the catalog resolves no
-     * effective materialization from the stream metadata.
+     * properties when the catalog resolves no effective stream/namespace/cluster policy.
+     * Implementations may combine these with deployment defaults, including a storage-only
+     * destination for internal compaction without an external table.
      *
      * <p>The default returns {@link Optional#empty()} (no task-property-based materialization).
      *

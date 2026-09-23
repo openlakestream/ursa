@@ -260,15 +260,14 @@ public class StorageConfigTest {
         assertEquals(180, config.getTailCompactDataVisibilityIntervalInSeconds());
         assertEquals(4_000, config.getPerReadMaxEntriesOfCompact());
         assertEquals(1_00, config.getPerReadMaxEntriesOfCompactLowWatermark());
-        assertEquals("io.lakestream.ursa.lakehouse.compact.LakehouseCompactionServiceImpl",
-                config.getCompactionServiceClass());
+        assertEquals("io.lakestream.ursa.lakehouse.compact.LakehouseMaterializationService",
+                config.getMaterializationServiceClass());
         assertEquals("", config.getMetadataStoreUrl());
         assertEquals("", config.getMetadataStoreConfig());
         assertEquals("", config.getOxiaStorageUrl());
         assertEquals("", config.getOxiaStorageConfig());
         assertEquals(60, config.getTopicToStreamCacheExpireTimeInSeconds());
         assertEquals(60, config.getRefreshLocalTopicInternalInSeconds());
-        assertEquals(300, config.getCompactionMaintenanceIntervalInSeconds());
         assertEquals(30, config.getRefreshLocalTaskIntervalInSeconds());
         assertEquals(30, config.getRetryableQuarantineInSeconds());
         assertEquals(300, config.getNonRetryableQuarantineInSeconds());
@@ -767,24 +766,6 @@ public class StorageConfigTest {
         overrides.put("catalogMaxOpenTimeInSeconds", "7200");
         StorageConfig overriddenConfig = defaultConfig.withOverrides(overrides);
         assertEquals(7200, overriddenConfig.getCatalogMaxOpenTimeInSeconds());
-    }
-
-    @Test
-    @DisplayName("Should handle compactionMaintenanceIntervalInSeconds configuration")
-    void testCompactionMaintenanceIntervalInSeconds() throws IOException {
-        Properties defaultProps = new Properties();
-        StorageConfig defaultConfig = StorageConfig.fromProperties(defaultProps);
-        assertEquals(300, defaultConfig.getCompactionMaintenanceIntervalInSeconds());
-
-        Properties customProps = new Properties();
-        customProps.put("compactionMaintenanceIntervalInSeconds", "12");
-        StorageConfig customConfig = StorageConfig.fromProperties(customProps);
-        assertEquals(12, customConfig.getCompactionMaintenanceIntervalInSeconds());
-
-        Map<String, String> overrides = new HashMap<>();
-        overrides.put("compactionMaintenanceIntervalInSeconds", "7");
-        StorageConfig overriddenConfig = defaultConfig.withOverrides(overrides);
-        assertEquals(7, overriddenConfig.getCompactionMaintenanceIntervalInSeconds());
     }
 
 }

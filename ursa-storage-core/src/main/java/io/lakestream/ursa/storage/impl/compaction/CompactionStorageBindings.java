@@ -69,16 +69,6 @@ public interface CompactionStorageBindings extends AutoCloseable {
      */
     Object schemaService();
 
-    /**
-     * Returns the schema-registry abstraction the publish runner uses to gate
-     * compaction tasks by schema readability.
-     *
-     * <p>The type stays {@link Object} so the lakehouse {@code SchemaRegistry} type
-     * does not have to live in core; the lakehouse bindings impl exposes a
-     * concrete getter for its callers.
-     */
-    Object getSchemaRegistry();
-
     /** Releases all resources held by the bindings. */
     @Override
     void close();

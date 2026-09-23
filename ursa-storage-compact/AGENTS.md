@@ -31,8 +31,7 @@ CompactionScheduler.start()
   │      stays free of integration-package imports)
   ├── initCompactRunner()
   │     spins up N CompactionWorker threads, each holding:
-  │       - CompactionService (legacy WAL → CO path)
-  │       - MaterializationService (new sink dispatch)
+  │       - MaterializationService (internal CO and external sink dispatch)
   │       - StreamCatalog (loadStream + resolveMaterialization)
   └── startLeaderElectionService()
         when elected leader:
@@ -40,21 +39,13 @@ CompactionScheduler.start()
           - storageBindings.createCompactedTaskRunner().start()
           - storageBindings.createAsyncCompactedDataCleaner().start()
 
-CompactionWorker.run() loop, per task — one path or the other, never both:
-  if materializationEnabled (default false):
-    maybeMaterialize(task)
-      1. StreamMetadata metadata = streamCatalog.loadStream(id)
-      2. resolved = streamCatalog.resolveMaterialization(id), falling back to
-         materializationService.resolveFromTaskProperties(...)
-      3. materializationService.materialize(MaterializationTask)
-         (internal compacted objects and the external table in one read pass)
-  else:
-    CompactionService.compactStream(task)         (legacy path: internal WAL → CO, plus
-                                                   Iceberg/Delta tables from task properties
-                                                   when SDT is enabled)
-  on MaterializationException with a code other than SOURCE_READ_ERROR / SOURCE_THROTTLED:
-    materializationService.invalidate(streamId)
-  the outer ExceptionCode-based retry / quarantine / task deletion routes every failure
+CompactionWorker.run() loop, per task:
+  1. StreamMetadata metadata = streamCatalog.loadStream(id)
+  2. Resolve the catalog policy or derive an internal/external destination from task properties
+  3. materializationService.materialize(MaterializationTask)
+  4. On MaterializationException with non-retryable code:
+        materializationService.invalidate(streamId)
+        (the outer ExceptionCode-based retry/quarantine routes the failure)
 ```
 
 The orchestrator drives both halves through reflective loaders so the compact
@@ -69,7 +60,6 @@ must return empty.
 |-----|---------|-------|
 | `compactionStorageBindingsClass` | `io.lakestream.ursa.lakehouse.compact.LakehouseCompactionStorageBindings` | Wires the publish/commit/cleaner runners. |
 | `materializationServiceClass` | `io.lakestream.ursa.lakehouse.compact.LakehouseMaterializationService` | The active materialization service. |
-| `compactionServiceClass` | (deprecated alias for the legacy combined service) | Still honoured: when set without `materializationServiceClass`, the scheduler logs a WARN and uses the alias's value. The historical default (`LakehouseCompactionServiceImpl`) is mapped to the new default. |
 
 ## Dependencies
 
@@ -95,7 +85,7 @@ Key tests:
 - `CompactionWorkerTest` — blacklist filtering + per-code quarantine routing
 - `CompactionWorkerMaterializationDispatchTest` — materialize() called when policy resolves
 - `CompactionWorkerMaterializationFailureTest` — invalidate() called on non-retryable failure
-- `CompactionSchedulerWiringTest` — config-key resolution incl. deprecated alias
+- `CompactionSchedulerWiringTest` — service loading and scheduler lifecycle
 - `LeaderElectionServiceTest` — distributed coordination
 
 ## Pitfalls

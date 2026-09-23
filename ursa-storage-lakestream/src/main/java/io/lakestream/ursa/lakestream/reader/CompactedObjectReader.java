@@ -6,48 +6,21 @@ package io.lakestream.ursa.lakestream.reader;
 
 import io.lakestream.api.EntryIndex;
 import io.lakestream.api.LogEntry;
-import io.lakestream.ursa.compaction.common.CompactedObjectFileIndex;
-import io.lakestream.ursa.storage.Entry;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 public interface CompactedObjectReader {
 
     /**
-     * Result of a read operation from a {@link CompactedObjectReader}.
+     * Result of a compacted object read.
      *
-     * <p>Semantics:
-     * <ul>
-     *   <li>If {@code isV2Result} is {@code false}, this represents a v1 result and
-     *   {@code entries} will contain exactly one {@link LogEntry}.</li>
-     *   <li>If {@code isV2Result} is {@code true}, this represents a v2 result and
-     *   {@code entries} may contain zero or more {@link LogEntry} instances.</li>
-     * </ul>
-     *
-     * @param isV2Result whether the result follows the v2 format
-     * @param entries the entries read according to the semantics described above
+     * @param entries zero or more entries read from the compacted object
      */
-    record ReadResult(boolean isV2Result, List<LogEntry> entries) { }
+    record ReadResult(List<LogEntry> entries) { }
 
-    default Optional<CompactedObjectFileIndex> getCompactedObjectFileIndex(EntryIndex entryIndex) {
-        return Optional.empty();
-    }
-
-    default CompletableFuture<ReadResult> readMessagesWithEntryIndexAsync(EntryIndex entryIndex, long startOffset,
-                                                                     long baseOffset, long maxNumOfMessages,
-                                                                     long maxSize) {
-        var location = entryIndex.position().location();
-        return readMessagesAsync(location, startOffset, baseOffset, maxNumOfMessages, maxSize);
-    }
-
-    CompletableFuture<ReadResult> readMessagesAsync(String path, long startOffset, long baseOffset,
-                                                    long maxNumOfMessages, long maxSize);
-
-    boolean hasSpaceInCache();
-
-    CompletableFuture<Entry> preFetchMessagesAsync(String path, long startOffset, long baseOffset,
-                                                   long maxNumOfMessages, long maxSize, long estimatedSize);
+    CompletableFuture<ReadResult> readMessagesWithEntryIndexAsync(EntryIndex entryIndex, long startOffset,
+                                                               long baseOffset, long maxNumOfMessages,
+                                                               long maxSize);
 
     void close();
 }

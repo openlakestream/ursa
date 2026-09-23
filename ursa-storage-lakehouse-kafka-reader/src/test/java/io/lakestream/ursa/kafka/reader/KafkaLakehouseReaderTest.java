@@ -11,13 +11,13 @@ import io.lakestream.api.EntryHeader;
 import io.lakestream.api.EntryIndex;
 import io.lakestream.api.Position;
 import io.lakestream.ursa.compaction.common.CompactedObjectFileIndex;
+import io.lakestream.ursa.lakehouse.AbstractLakehouseWriter;
+import io.lakestream.ursa.lakehouse.IWriteResult;
 import io.lakestream.ursa.lakehouse.LakehouseConfiguration;
-import io.lakestream.ursa.lakehouse.v2.AbstractLakehouseWriter;
-import io.lakestream.ursa.lakehouse.v2.IWriteResult;
-import io.lakestream.ursa.lakehouse.v2.LakehouseWriter;
-import io.lakestream.ursa.lakehouse.v2.io.parquet.ParquetFileWriter;
-import io.lakestream.ursa.lakehouse.v2.io.parquet.ParquetWriteResult;
-import io.lakestream.ursa.lakehouse.v2.serde.kafka.parquet.KafkaEntryBatchedRawDataToParquetEncoder;
+import io.lakestream.ursa.lakehouse.LakehouseWriter;
+import io.lakestream.ursa.lakehouse.io.parquet.ParquetFileWriter;
+import io.lakestream.ursa.lakehouse.io.parquet.ParquetWriteResult;
+import io.lakestream.ursa.lakehouse.serde.kafka.parquet.KafkaEntryBatchedRawDataToParquetEncoder;
 import io.lakestream.ursa.lakestream.reader.CompactedObjectReader;
 import io.lakestream.ursa.materialization.serde.EntrySerdeFactory;
 import io.lakestream.ursa.materialization.serde.GenericEntry;
@@ -57,7 +57,7 @@ class KafkaLakehouseReaderTest {
 
         assertThatThrownBy(() -> KafkaLakehouseReader.transferEntries(entries))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("convert Kafka V2 lakehouse entries")
+                .hasMessageContaining("convert Kafka lakehouse entries")
                 .satisfies(error -> {
                     assertThat(error.getCause()).isInstanceOf(IllegalArgumentException.class);
                     assertThat(error.getCause().getSuppressed()).isEmpty();
@@ -68,7 +68,7 @@ class KafkaLakehouseReaderTest {
     }
 
     @Test
-    void readsFromInsideBatchUsingFileIndexProducedByV2Writer() throws Exception {
+    void readsFromInsideBatchUsingFileIndexProducedByWriter() throws Exception {
         byte[] expectedPayload = {1, 2, 3};
         EntryHeader header = new EntryHeader(10, 2, 1234, 3, 3);
         ParquetWriteResult writeResult = writeWithLakehouseWriter(
@@ -94,7 +94,6 @@ class KafkaLakehouseReaderTest {
                 entryIndex, 11, 10, 10, 1024).join();
         ByteBuf returnedPayload = result.entries().get(0).payload();
         try {
-            assertThat(result.isV2Result()).isTrue();
             assertThat(result.entries()).hasSize(1);
             assertThat(result.entries().get(0).offset()).isEqualTo(10);
             assertThat(result.entries().get(0).numberOfRecords()).isEqualTo(2);
@@ -133,33 +132,33 @@ class KafkaLakehouseReaderTest {
     }
 
     @Test
-    void rejectsEntryIndexesWithoutTheKafkaV2CompactedObjectFileIndex() throws Exception {
+    void rejectsEntryIndexesWithoutTheKafkaCompactedObjectFileIndex() throws Exception {
         KafkaLakehouseReaderFactory factory = new KafkaLakehouseReaderFactory();
         Properties properties = new Properties();
         properties.setProperty("storagePath", temporaryDirectory.toString());
         factory.initialize(properties, InstrumentProvider.NOOP);
         CompactedObjectReader reader = factory.open("default/orders");
         EntryHeader header = new EntryHeader(0, 1, 0, 1, 1);
-        EntryIndex legacyEntryIndex = new EntryIndex(
-                header, new Position("legacy.parquet"), 1, EntryIndex.IndexType.COMPACT,
+        EntryIndex entryIndexWithoutFileIndex = new EntryIndex(
+                header, new Position("missing-index.parquet"), 1, EntryIndex.IndexType.COMPACT,
                 Optional.empty(), Optional.empty());
 
         assertThatThrownBy(() -> reader.readMessagesWithEntryIndexAsync(
-                legacyEntryIndex, 0, 0, 1, 1024).join())
+                entryIndexWithoutFileIndex, 0, 0, 1, 1024).join())
                 .isInstanceOf(CompletionException.class)
-                .hasCauseInstanceOf(UnsupportedOperationException.class)
-                .hasMessageContaining("V2 KAFKA_BATCHED_RAW_PARQUET");
+                .hasCauseInstanceOf(java.io.IOException.class)
+                .hasMessageContaining("Missing compacted object file index");
 
         reader.close();
         factory.close();
     }
 
     @Test
-    void rejectsMalformedLegacyMetadataWithoutLeakingTheReader() throws Exception {
+    void rejectsMalformedMetadataWithoutLeakingTheReader() throws Exception {
         Path topicDirectory = temporaryDirectory.resolve("default/orders");
         Files.createDirectories(topicDirectory);
         EntryHeader header = new EntryHeader(10, 1, 1234, 3, 3);
-        String dataFile = writeWithLegacyLakehouseWriter(topicDirectory, header, new byte[] {1, 2, 3}, false);
+        String dataFile = writeWithParquetFileWriter(topicDirectory, header, new byte[] {1, 2, 3}, false);
         CompactedObjectFileIndex fileIndex = new CompactedObjectFileIndex();
         fileIndex.append(10, dataFile);
         EntryIndex entryIndex = new EntryIndex(
@@ -208,7 +207,7 @@ class KafkaLakehouseReaderTest {
         reader.close();
     }
 
-    private static String writeWithLegacyLakehouseWriter(
+    private static String writeWithParquetFileWriter(
             Path directory, EntryHeader header, byte[] payloadBytes, boolean validMetadata) throws Exception {
         Properties properties = new Properties();
         properties.setProperty("storagePath", directory.toString());

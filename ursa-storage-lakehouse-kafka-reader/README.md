@@ -4,7 +4,7 @@ This artifact contains the compacted-object reader used by the Ursa Kafka integr
 
 - artifact: `org.openlakestream:ursa-storage-lakehouse-kafka-reader`
 - factory: `io.lakestream.ursa.kafka.reader.KafkaLakehouseReaderFactory`
-- supported format: V2 `KAFKA_BATCHED_RAW_PARQUET`
+- supported format: `KAFKA_BATCHED_RAW_PARQUET`
 - supported storage backends: local files, S3/S3A, GCS, and Azure Data Lake Storage
   Gen2 through `AZUREDFS`/ABFS (`abfss://`)
 
@@ -17,7 +17,6 @@ Kafka compaction writes this format with a `CompactedObjectFileIndex` in the Lak
 `.index` file by Kafka offset, and returns owned `LogEntry` buffers. Callers must close every
 returned entry exactly once.
 
-The artifact intentionally does not support the historical V1 generic lakehouse format.
 An `EntryIndex` without `CompactedObjectFileIndex`, or a Parquet file with a different serde type,
 fails explicitly.
 

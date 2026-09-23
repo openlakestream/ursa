@@ -94,7 +94,6 @@ The compaction orchestrator reads these implementation-class properties:
 |----------|---------|
 | `materializationServiceClass` | Selects stream-to-table dispatch |
 | `compactionStorageBindingsClass` | Selects publish, commit, and cleanup bindings |
-| `compactionServiceClass` | Deprecated compatibility alias |
 
 ## Commands
 
@@ -143,7 +142,8 @@ a Docker Compose stack. Start Docker and check the daemon with `docker info` bef
 - Confluent Community License artifacts (`kafka-json-schema-*`, `kafka-protobuf-*`) are allowed in
   test scope only, and the enforcer rule fails the build otherwise. JSON Schema and Protobuf decoding
   uses the `serde.kafka.schema` package in `ursa-storage-materialization` instead.
-- In `ursa-storage-lakehouse`, new code goes in the `v2` packages.
+- In `ursa-storage-lakehouse`, new code goes in the appropriate functional package under
+  `io.lakestream.ursa.lakehouse`.
 
 ## Boundaries
 

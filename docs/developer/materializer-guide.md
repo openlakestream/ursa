@@ -74,9 +74,8 @@ The details that shape your implementation:
   task threads with every other stream, and a stream's internal compaction commits only after its
   materializer does. A slow or failing destination therefore holds up compaction.
 
-The compactor calls materializers only when `materializationEnabled=true` is set in its
-configuration. The default, `false`, keeps the older compaction path, which never calls
-materializers.
+The compactor uses `MaterializationService` for all compaction tasks. External materializers
+are selected by the resolved stream policy or task properties; no enablement switch is required.
 
 ## Set up the project
 
@@ -536,7 +535,7 @@ Two things to design for:
 - **Handle concurrent schema changes.** Partitions of the same stream run as separate tasks at the
   same time, and they can try to create or alter the same table at the same moment.
 
-[`KafkaEntryToIcebergRecordEncoder`](../../ursa-storage-lakehouse/src/main/java/io/lakestream/ursa/lakehouse/v2/serde/iceberg/KafkaEntryToIcebergRecordEncoder.java)
+[`KafkaEntryToIcebergRecordEncoder`](../../ursa-storage-lakehouse/src/main/java/io/lakestream/ursa/lakehouse/serde/iceberg/KafkaEntryToIcebergRecordEncoder.java)
 shows the full pattern. The ClickHouse materializer takes a simpler route: it adds columns as new
 fields appear in the rows it writes, and it rejects a change to an existing column's type
 ([`ClickHouseTableSchemaService.ensureColumns`](../../ursa-storage-clickhouse/src/main/java/io/lakestream/ursa/clickhouse/ClickHouseTableSchemaService.java)).
@@ -660,7 +659,7 @@ Document which ones you support. Ursa 1.0 doesn't apply `evolution`, `framework.
 
 Operators can also declare catalogs in the compactor configuration, with keys such as
 `clickhouse.catalog.<name>.dsn`. That needs a prefix for your type in
-[`TableCatalogBootstrap`](../../ursa-storage-lakehouse/src/main/java/io/lakestream/ursa/lakehouse/v2/TableCatalogBootstrap.java),
+[`TableCatalogBootstrap`](../../ursa-storage-lakehouse/src/main/java/io/lakestream/ursa/lakehouse/TableCatalogBootstrap.java),
 which is part of the registration pull request if you want it.
 
 ## Test it
@@ -699,9 +698,7 @@ Before you publish, make sure your tests cover these cases:
 3. **Watch for classpath conflicts.** The compactor loads every materializer on one flat classpath,
    next to Iceberg, Delta, Parquet, Avro, Jackson and Netty. If your client library needs different
    versions of any of these, shade and relocate them in your jar.
-4. **Turn materialization on** by setting `materializationEnabled=true` in the compactor
-   configuration.
-5. **Register a catalog and attach a policy**, as described above.
+4. **Register a catalog and attach a policy**, as described above.
 
 ## Register the type in Ursa
 
@@ -714,7 +711,7 @@ releases that include this change.
 | [`TableCatalogType`](../../lakestream-api/src/main/java/io/lakestream/api/materialization/TableCatalogType.java) | Add your constant, with JavaDoc |
 | [`EnumsTest`](../../lakestream-api/src/test/java/io/lakestream/api/materialization/EnumsTest.java) | Update the expected number of values |
 | [`LakehouseMaterializationService`](../../ursa-storage-lakehouse/src/main/java/io/lakestream/ursa/lakehouse/compact/LakehouseMaterializationService.java) | Add your constant to the two `switch` expressions over the catalog type. In `withResolvedMaterialization`, map it to a `LakehouseType`: materializers that commit on their own use `NONE`, as ClickHouse does. In `evolutionPolicyFor`, choose its `EvolutionPolicy`. Without these, the module doesn't compile. |
-| [`TableCatalogBootstrap`](../../ursa-storage-lakehouse/src/main/java/io/lakestream/ursa/lakehouse/v2/TableCatalogBootstrap.java) | Optional: a `<type>.catalog.<name>.*` configuration prefix |
+| [`TableCatalogBootstrap`](../../ursa-storage-lakehouse/src/main/java/io/lakestream/ursa/lakehouse/TableCatalogBootstrap.java) | Optional: a `<type>.catalog.<name>.*` configuration prefix |
 | [`table-materialization.md`](../user/table-materialization.md) | Add your materializer to the list of materializers, with a link to its repository |
 
 One compatibility consequence: once a catalog with your type is stored, an Ursa build that doesn't

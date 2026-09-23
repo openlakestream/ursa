@@ -14,7 +14,6 @@ import io.lakestream.ursa.lakehouse.delta.ExternalDeltaTableFactory;
 import io.lakestream.ursa.lakehouse.exception.LakehouseException;
 import io.lakestream.ursa.lakehouse.utils.AvroSchemaUtilExtended;
 import io.lakestream.ursa.lakehouse.utils.StreamTableNaming;
-import io.lakestream.ursa.lakehouse.v2.MessageId;
 import io.lakestream.ursa.lakehouse.writer.ParquetFileStat;
 import java.io.IOException;
 import java.util.List;

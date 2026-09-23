@@ -43,16 +43,7 @@ import org.mockito.InOrder;
 /**
  * Smoke test for the {@link CompactionScheduler} reflective wiring.
  *
- * <p>Covers two paths:
- * <ul>
- *   <li>{@code materializationServiceClass} is honoured when set (new config key).</li>
- *   <li>The deprecated {@code compactionServiceClass} alias is honoured with a fallback when
- *       the new key is absent.</li>
- * </ul>
- *
- * <p>The test exercises the static class-name resolution helper on
- * {@link CompactionScheduler} via reflection, since standing up a full scheduler requires Oxia
- * + downstream wiring that is out of scope for unit tests.
+ * <p>Verifies materialization service loading and scheduler lifecycle wiring.
  */
 public class CompactionSchedulerWiringTest {
 
@@ -98,36 +89,7 @@ public class CompactionSchedulerWiringTest {
         config.setMaterializationServiceClass(FakeMaterializationService.class.getName());
 
         assertEquals(FakeMaterializationService.class.getName(),
-                invokeResolveMaterializationServiceClass(config));
-    }
-
-    @Test
-    public void legacyAliasFallsBackWithWarn() throws Exception {
-        StorageConfig config = StorageConfig.builder().build();
-        Properties props = new Properties();
-        props.setProperty("compactionServiceClass", FakeMaterializationService.class.getName());
-        config.setProperties(props);
-        config.setCompactionServiceClass(FakeMaterializationService.class.getName());
-
-        assertEquals(FakeMaterializationService.class.getName(),
-                invokeResolveMaterializationServiceClass(config));
-    }
-
-    @Test
-    public void legacyDefaultMapsToNewDefault() throws Exception {
-        StorageConfig config = StorageConfig.builder().build();
-        Properties props = new Properties();
-        // Caller still sets the legacy key with the historical default; the resolver should
-        // map it to the new default (LakehouseMaterializationService) rather than the
-        // pre-T10 LakehouseCompactionServiceImpl.
-        props.setProperty("compactionServiceClass",
-                "io.lakestream.ursa.lakehouse.compact.LakehouseCompactionServiceImpl");
-        config.setProperties(props);
-        config.setCompactionServiceClass(
-                "io.lakestream.ursa.lakehouse.compact.LakehouseCompactionServiceImpl");
-
-        assertEquals(config.getMaterializationServiceClass(),
-                invokeResolveMaterializationServiceClass(config));
+                MaterializationServiceProvider.load(config.getMaterializationServiceClass()).getClass().getName());
     }
 
     @Test
@@ -241,13 +203,6 @@ public class CompactionSchedulerWiringTest {
         order.verify(workerExecutor).shutdownNow();
         order.verify(workerExecutor).awaitTermination(10, TimeUnit.SECONDS);
         order.verify(materialization).close();
-    }
-
-    private static String invokeResolveMaterializationServiceClass(StorageConfig config) throws Exception {
-        Method m = CompactionScheduler.class.getDeclaredMethod(
-                "resolveMaterializationServiceClass", StorageConfig.class);
-        m.setAccessible(true);
-        return (String) m.invoke(null, config);
     }
 
     private static void invokeStartPublishCompactTaskRunner(CompactionScheduler scheduler) throws Exception {

@@ -19,7 +19,7 @@ import io.delta.kernel.internal.hook.CheckpointHook;
 import io.delta.kernel.types.StructType;
 import io.delta.kernel.utils.CloseableIterable;
 import io.lakestream.ursa.lakehouse.LakehouseConfiguration;
-import io.lakestream.ursa.lakehouse.iceberg.exception.SchemaMappingException;
+import io.lakestream.ursa.lakehouse.schema.SchemaMappingException;
 import io.lakestream.ursa.lakehouse.utils.TopicName;
 import java.io.IOException;
 import java.util.List;

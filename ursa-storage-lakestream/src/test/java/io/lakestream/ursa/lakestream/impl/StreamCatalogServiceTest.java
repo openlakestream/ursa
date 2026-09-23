@@ -89,7 +89,7 @@ class StreamCatalogServiceTest {
             when(compactedReader.readMessagesWithEntryIndexAsync(
                 eq(entryIndex), eq(startOffset), eq(startOffset), eq(10L), eq(1024L)))
                 .thenReturn(CompletableFuture.completedFuture(
-                    new CompactedObjectReader.ReadResult(false, List.of(compactedEntry))));
+                    new CompactedObjectReader.ReadResult(List.of(compactedEntry))));
 
             IndexedStreamCatalog.LogFactory logFactory = StreamCatalogService.createLogFactory(
                 storageApi, logStorage, cache, stateManager);

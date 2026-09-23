@@ -13,7 +13,6 @@ import io.lakestream.ursa.lakehouse.iceberg.IcebergTable;
 import io.lakestream.ursa.lakehouse.iceberg.TableOptions;
 import io.lakestream.ursa.lakehouse.utils.AvroSchemaUtilExtended;
 import io.lakestream.ursa.lakehouse.utils.StreamTableNaming;
-import io.lakestream.ursa.lakehouse.v2.MessageId;
 import io.lakestream.ursa.lakehouse.writer.ParquetFileStat;
 import java.io.IOException;
 import java.util.HashMap;

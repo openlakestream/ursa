@@ -2,20 +2,19 @@
 
 Lakehouse integration module. 304 Java files in main, 151 in test. Largest module.
 
-## Architecture: v2 vs v1
+## Architecture
 
-- **`io.lakestream.ursa.lakehouse.v2.*`** — Current code path. All new work goes here.
-- **`io.lakestream.ursa.lakehouse.*`** (root packages) — Legacy v1. Do not add new code.
+Readers, writers, materializers, and shared integration code live under
+`io.lakestream.ursa.lakehouse` and its functional subpackages.
 
 ## Package Layout
 
-### V2 (current)
 ```
-v2/delta/          — Delta Lake table format integration
-v2/iceberg/        — Apache Iceberg table format integration
-v2/io/             — I/O layer
+delta/            — Delta Lake table format integration
+iceberg/          — Apache Iceberg table format integration
+io/               — I/O layer
   └── parquet/     — Parquet file reading/writing
-v2/serde/          — Sink-specific serde wiring (Delta/Iceberg/Parquet only)
+serde/            — Sink-specific serde wiring (Delta/Iceberg/Parquet only)
   ├── delta/       — Kafka → Delta record encoders
   ├── iceberg/     — Iceberg record encoders + ProtobufNativeToIcebergConverter
   ├── kafka/parquet/   — Kafka → Parquet encoders/decoders
@@ -37,48 +36,40 @@ orchestrator bindings for Iceberg / Delta / Delta-UC:
 
 | Class | Purpose |
 |-------|---------|
-| `v2.LakehouseTableMaterializer` | `TableMaterializer<GenericEntry>` adapter wrapping `AbstractLakehouseWriter` + Delta/Iceberg writer subclasses. `write(record, ctx)` delegates to the existing per-format writer; `commit()` calls `close()` and converts `List<IWriteResult>` to `CommitResult`. |
-| `v2.LakehouseIcebergTableMaterializerFactory` | `catalogType() == TableCatalogType.ICEBERG` |
-| `v2.LakehouseDeltaTableMaterializerFactory` | `catalogType() == TableCatalogType.DELTA` |
-| `v2.LakehouseDeltaUcTableMaterializerFactory` | `catalogType() == TableCatalogType.DELTA_UC` |
-| `compact.LakehouseMaterializationService` | External-write half of the legacy `LakehouseCompactionServiceImpl`, refactored to implement the `MaterializationService` SPI. Includes `invalidate(StreamIdentifier)` which absorbs today's `invalidateCompactWorker(...)`. |
-| `compact.LakehouseCompactionServiceImpl` | Internal WAL→CO compaction half — the lakehouse-specific compactor wiring. Loaded as `compactionServiceClass` legacy default. |
+| `LakehouseTableMaterializer` | `TableMaterializer<GenericEntry>` adapter wrapping `AbstractLakehouseWriter` + Delta/Iceberg writer subclasses. `write(record, ctx)` delegates to the existing per-format writer; `commit()` calls `close()` and converts `List<IWriteResult>` to `CommitResult`. |
+| `LakehouseIcebergTableMaterializerFactory` | `catalogType() == TableCatalogType.ICEBERG` |
+| `LakehouseDeltaTableMaterializerFactory` | `catalogType() == TableCatalogType.DELTA` |
+| `LakehouseDeltaUcTableMaterializerFactory` | `catalogType() == TableCatalogType.DELTA_UC` |
+| `compact.LakehouseMaterializationService` | Implements the `MaterializationService` SPI for internal CO and external table writes. |
 | `compact.LakehouseCompactionStorageBindings` | Default `CompactionStorageBindings` impl loaded reflectively from `ursa-storage-compact`; supplies `PublishCompactTaskRunner`, `CompactedTaskRunner`, `AsyncCompactedDataCleaner`, `CompactedDataCleanupHandler`. |
 
 ## SPI Registration
 
 ```
 src/main/resources/META-INF/services/io.lakestream.ursa.materialization.TableMaterializerFactory
-  → io.lakestream.ursa.lakehouse.v2.LakehouseIcebergTableMaterializerFactory
-  → io.lakestream.ursa.lakehouse.v2.LakehouseDeltaTableMaterializerFactory
-  → io.lakestream.ursa.lakehouse.v2.LakehouseDeltaUcTableMaterializerFactory
+  → io.lakestream.ursa.lakehouse.LakehouseIcebergTableMaterializerFactory
+  → io.lakestream.ursa.lakehouse.LakehouseDeltaTableMaterializerFactory
+  → io.lakestream.ursa.lakehouse.LakehouseDeltaUcTableMaterializerFactory
 ```
 
 Iceberg sub-flavours (Glue / REST / Hadoop / Polaris / Unity) are routed
 through `TableCatalog.connection["catalog-impl"]` — one factory handles all
 Iceberg catalogs.
 
-## Internal vs External Compaction Split
+## Materialization Dispatch
 
-Before LIP-161, `LakehouseCompactionServiceImpl` carried both halves:
-- WAL → Compacted Object (Parquet on object storage) — the stream's own
-  data, kept here under `compact.LakehouseCompactionServiceImpl`.
-- WAL → external Delta/Iceberg table — extracted to
-  `compact.LakehouseMaterializationService` so the orchestrator can
-  dispatch through the new `MaterializationService` SPI without importing
-  any lakehouse types.
+`LakehouseMaterializationService` handles both internal Parquet CO files and external
+Delta/Iceberg table files. `CompactionTaskCompleter` persists file results for the group-commit
+runner; inline sinks without file results retire their tasks directly. The orchestrator
+uses the sink-neutral `MaterializationService.invalidate(streamId)` on non-retryable failures.
 
-The `CompactionWorker` `instanceof LakehouseCompactionServiceImpl` hack
-and the `S3Exception | AzureException` reach-around were replaced with
-the sink-neutral `MaterializationService.invalidate(streamId)` call.
-
-### V1 Legacy (161 files — do not extend)
+### Shared integration packages
 ```
 catalog/           — Table catalog management
 cleaner/           — Compacted data cleanup
 compact/           — Compaction logic
-delta/             — Delta Lake v1
-iceberg/           — Iceberg v1 (includes GCP BigQuery metastore)
+delta/             — Delta Lake integration
+iceberg/           — Iceberg integration (includes GCP BigQuery metastore)
 parquet/           — Parquet utilities
 schema/            — Schema management
 utils/             — Utilities (includes lock subpackage)
@@ -121,7 +112,7 @@ All test classes use `@Tag("lakehouse")`.
 
 ## Pitfalls
 
-- New code goes in `v2/` — never in root packages
+- Place new code in the appropriate functional package under `io.lakestream.ursa.lakehouse`.
 - Don't cross-reference Iceberg/Delta packages
 - Vendor code: prefer upstream fixes over local patches
 - Schema conversion has many edge cases — test with Avro, JSON, and Protobuf schemas

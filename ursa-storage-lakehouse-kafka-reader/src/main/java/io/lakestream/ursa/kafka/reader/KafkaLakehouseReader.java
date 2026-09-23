@@ -48,8 +48,7 @@ final class KafkaLakehouseReader implements CompactedObjectReader {
         this.executor = executor;
     }
 
-    @Override
-    public Optional<CompactedObjectFileIndex> getCompactedObjectFileIndex(EntryIndex entryIndex) {
+    private Optional<CompactedObjectFileIndex> getCompactedObjectFileIndex(EntryIndex entryIndex) {
         Map<String, String> metadata = entryIndex.extraData().orElse(new HashMap<>());
         String serialized = metadata.get(CompactedObjectFileIndex.NAME);
         return serialized == null
@@ -67,24 +66,19 @@ final class KafkaLakehouseReader implements CompactedObjectReader {
             return CompletableFuture.failedFuture(error);
         }
         if (fileIndex.isEmpty()) {
-            return unsupportedV1();
+            return CompletableFuture.failedFuture(
+                    new IOException("Missing compacted object file index in entry metadata"));
         }
         try {
             String filePath = fileIndex.get().get(startOffset);
             long fileBaseOffset = fileIndex.get().getFileBaseOffset(startOffset).orElse(baseOffset);
-            return readV2(filePath, startOffset, fileBaseOffset, maxNumOfMessages, maxSize);
+            return readAsync(filePath, startOffset, fileBaseOffset, maxNumOfMessages, maxSize);
         } catch (RuntimeException error) {
             return CompletableFuture.failedFuture(error);
         }
     }
 
-    @Override
-    public CompletableFuture<ReadResult> readMessagesAsync(
-            String path, long startOffset, long baseOffset, long maxNumOfMessages, long maxSize) {
-        return unsupportedV1();
-    }
-
-    private CompletableFuture<ReadResult> readV2(
+    private CompletableFuture<ReadResult> readAsync(
             String path, long startOffset, long baseOffset, long maxNumOfMessages, long maxSize) {
         if (closed.get()) {
             return CompletableFuture.failedFuture(new IllegalStateException("Kafka lakehouse reader is closed"));
@@ -101,7 +95,7 @@ final class KafkaLakehouseReader implements CompactedObjectReader {
         CompletableFuture<ReadResult> read;
         try {
             read = CompletableFuture.supplyAsync(
-                    () -> readV2Sync(path, startOffset, messageLimit, maxSize), executor);
+                    () -> readSync(path, startOffset, messageLimit, maxSize), executor);
         } catch (RuntimeException submissionFailure) {
             return CompletableFuture.failedFuture(submissionFailure);
         }
@@ -112,7 +106,7 @@ final class KafkaLakehouseReader implements CompactedObjectReader {
         });
     }
 
-    private ReadResult readV2Sync(String path, long startOffset, int maxNumOfMessages, long maxSize) {
+    private ReadResult readSync(String path, long startOffset, int maxNumOfMessages, long maxSize) {
         List<Entry> entries = new ArrayList<>();
         try {
             URI parquetFile = URI.create(TopicPaths.storagePath(configuration.storagePath(), logName) + "/" + path);
@@ -145,7 +139,7 @@ final class KafkaLakehouseReader implements CompactedObjectReader {
             }
         } catch (Throwable error) {
             release(entries, error);
-            throw new KafkaLakehouseReadException("Failed to read Kafka V2 lakehouse file", error);
+            throw new KafkaLakehouseReadException("Failed to read Kafka lakehouse file", error);
         }
         return transferEntries(entries);
     }
@@ -154,14 +148,14 @@ final class KafkaLakehouseReader implements CompactedObjectReader {
      * Transfers the storage entries to the public result after file reading has succeeded.
      *
      * <p>{@link Entry#toLogEntries(List)} owns cleanup when conversion fails, so this operation is
-     * deliberately outside the file-read cleanup block in {@link #readV2Sync}. Releasing
+     * deliberately outside the file-read cleanup block in {@link #readSync}. Releasing
      * {@code entries} again here would double-release entries converted before the failure.
      */
     static ReadResult transferEntries(List<Entry> entries) {
         try {
-            return new ReadResult(true, Entry.toLogEntries(entries));
+            return new ReadResult(Entry.toLogEntries(entries));
         } catch (Throwable error) {
-            throw new KafkaLakehouseReadException("Failed to convert Kafka V2 lakehouse entries", error);
+            throw new KafkaLakehouseReadException("Failed to convert Kafka lakehouse entries", error);
         }
     }
 
@@ -202,24 +196,6 @@ final class KafkaLakehouseReader implements CompactedObjectReader {
                 error.addSuppressed(cleanupFailure);
             }
         }
-    }
-
-    private static CompletableFuture<ReadResult> unsupportedV1() {
-        return CompletableFuture.failedFuture(new UnsupportedOperationException(
-                "Kafka-only lakehouse reader currently supports V2 KAFKA_BATCHED_RAW_PARQUET files only; "
-                        + "V1 compacted parquet requires the legacy ursa-storage-lakehouse runtime"));
-    }
-
-    @Override
-    public boolean hasSpaceInCache() {
-        return false;
-    }
-
-    @Override
-    public CompletableFuture<Entry> preFetchMessagesAsync(
-            String path, long startOffset, long baseOffset, long maxNumOfMessages, long maxSize, long estimatedSize) {
-        return CompletableFuture.failedFuture(new UnsupportedOperationException(
-                "Kafka-only lakehouse reader does not provide a prefetch cache"));
     }
 
     @Override

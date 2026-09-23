@@ -30,7 +30,6 @@ import io.lakestream.api.LogId;
 import io.lakestream.api.LogOffset;
 import io.lakestream.api.LogStorage;
 import io.lakestream.api.Position;
-import io.lakestream.ursa.lakestream.reader.CompactedObjectReader;
 import io.lakestream.ursa.storage.Entry;
 import io.lakestream.ursa.storage.impl.exception.EntryCacheClosedException;
 import io.lakestream.ursa.storage.impl.exception.WalStorageException;
@@ -394,24 +393,6 @@ class LogCursorImplTest {
 
         assertThrows(ExecutionException.class, readFuture::get);
         assertEquals(0, accumulatedPayload.refCnt());
-    }
-
-    // --- PARQUET prefetch ---
-
-    @Test
-    void testParquetPrefetchSkippedOnRawRead() throws Exception {
-        CompactedObjectReader reader = mock(CompactedObjectReader.class);
-        cursor.setCompactedObjectReader(reader);
-        cursor.setNextReadIndex(CompletableFuture.completedFuture(makeRawEntryIndex(0, 1)));
-
-        LogEntry entry = mockLogEntry(0, 1, 50);
-        when(log.readEntries(eq(0L), anyInt(), anyLong()))
-            .thenReturn(CompletableFuture.completedFuture(List.of(entry)));
-
-        cursor.readEntries(10, Long.MAX_VALUE).get();
-
-        verify(reader, never()).preFetchMessagesAsync(any(), anyLong(), anyLong(),
-            anyLong(), anyLong(), anyLong());
     }
 
     @Test

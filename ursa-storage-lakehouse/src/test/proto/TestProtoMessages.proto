@@ -4,9 +4,9 @@
  */
 syntax = "proto3";
 
-package io.lakestream.ursa.lakehouse.v2.serde.iceberg.test;
+package io.lakestream.ursa.lakehouse.serde.iceberg.test;
 
-option java_package = "io.lakestream.ursa.lakehouse.v2.serde.iceberg.test";
+option java_package = "io.lakestream.ursa.lakehouse.serde.iceberg.test";
 option java_outer_classname = "TestProtoMessages";
 
 // Enum for testing enum conversion

@@ -13,8 +13,6 @@ import io.lakestream.api.LogCursor;
 import io.lakestream.api.LogEntry;
 import io.lakestream.api.LogEntryHeader;
 import io.lakestream.api.Position;
-import io.lakestream.ursa.lakestream.reader.CompactedObjectReader;
-import io.lakestream.ursa.storage.Entry;
 import io.lakestream.ursa.storage.OwnedResultFutures;
 import io.lakestream.ursa.storage.impl.exception.EntryCacheClosedException;
 import io.oxia.client.api.AsyncOxiaClient;
@@ -27,7 +25,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Predicate;
@@ -79,18 +76,8 @@ public class LogCursorImpl implements LogCursor {
     private static final long SYNC_TIMEOUT_SECONDS = 30;
     private static final int MAX_PRE_FETCH_SIZE = 64 * 1024 * 1024;
 
-    // PARQUET prefetch state
-    private volatile CompletableFuture<Long> previousPrefetchEntryOffsetFuture;
-    private EntryIndex prefetchedParquetIndex;
-    private volatile CompletableFuture<Void> prefetchedParquetIndexFuture =
-            CompletableFuture.completedFuture(null);
     // Bound on how far isCacheLifecycleFailure() walks a wrapped cause chain.
     private static final int MAX_CAUSE_CHAIN_DEPTH = 16;
-    private static final int PARQUET_TOTAL_CACHE_COUNT = 5;
-    private static final int TRIGGER_PARQUET_CACHE_ONE_ROUND = 5;
-    private final AtomicInteger currentParquetCacheCount = new AtomicInteger(1);
-
-    @Nullable private volatile CompactedObjectReader compactedObjectReader;
 
     // Adaptive sizing
     private int avgEntrySize = -1;
@@ -337,7 +324,6 @@ public class LogCursorImpl implements LogCursor {
                 lock.readLock().lock();
                 try {
                     long newReadOffset = this.readOffset;
-                    boolean isParquetRead = false;
                     while (nextUnownedEntry < entries.size()) {
                         LogEntry entry = entries.get(nextUnownedEntry);
                         long entryOffset = entry.offset();
@@ -363,15 +349,6 @@ public class LogCursorImpl implements LogCursor {
                         this.previousReadOffset = this.readOffset;
                         this.readOffset = newReadOffset;
                         this.nextReadIndex = logDelegate.getEntryIndex(readOffset);
-                        if (!entries.isEmpty()) {
-                            isParquetRead = !rawPrefetch;
-                        }
-                    }
-                    // Trigger PARQUET prefetch only if we read from PARQUET
-                    if (isParquetRead) {
-                        int readCount = Math.max(1,
-                            avgEntrySize <= 0 ? maxEntries : (int) (maxSizeBytes / avgEntrySize));
-                        triggerParquetPrefetch(readOffset, readCount, maxSizeBytes);
                     }
                 } finally {
                     lock.readLock().unlock();
@@ -981,129 +958,6 @@ public class LogCursorImpl implements LogCursor {
         preFetchedMessageCount = 0;
         preFetchIndexesFuture = CompletableFuture.completedFuture(null);
         nextReadIndex = CompletableFuture.completedFuture(null);
-        previousPrefetchEntryOffsetFuture = null;
-    }
-
-    // --- PARQUET prefetch ---
-
-    /**
-     * Sets the compacted object reader used for PARQUET prefetch after cursor construction.
-     */
-    public void setCompactedObjectReader(@Nullable CompactedObjectReader reader) {
-        this.compactedObjectReader = reader;
-    }
-
-    @VisibleForTesting
-    @Nullable
-    public CompactedObjectReader getCompactedObjectReader() {
-        return compactedObjectReader;
-    }
-
-    /**
-     * Triggers PARQUET data prefetch after a PARQUET read completes.
-     * Chains async prefetches via previousPrefetchEntryOffsetFuture.
-     */
-    void triggerParquetPrefetch(long readOffset, int readCount, long maxSizeBytes) {
-        CompactedObjectReader reader = compactedObjectReader;
-        if (reader == null) {
-            return;
-        }
-        synchronized (this) {
-            if (previousPrefetchEntryOffsetFuture != null
-                    && !previousPrefetchEntryOffsetFuture.isDone()
-                    && !previousPrefetchEntryOffsetFuture.isCompletedExceptionally()) {
-                return;
-            }
-            if (previousPrefetchEntryOffsetFuture == null
-                    || previousPrefetchEntryOffsetFuture.isCompletedExceptionally()) {
-                previousPrefetchEntryOffsetFuture = preFetchParquetCache(
-                    readOffset, readCount, maxSizeBytes);
-            } else {
-                previousPrefetchEntryOffsetFuture = previousPrefetchEntryOffsetFuture
-                    .thenCompose(previousOffset -> preFetchParquetCache(
-                        previousOffset, readCount, maxSizeBytes))
-                    .exceptionally(ex -> {
-                        previousPrefetchEntryOffsetFuture = null;
-                        return readOffset;
-                    });
-            }
-        }
-    }
-
-    private CompletableFuture<Long> preFetchParquetCache(long readOffset, int toRead, long maxSizeBytes) {
-        CompactedObjectReader reader = compactedObjectReader;
-        if (reader == null) {
-            return CompletableFuture.completedFuture(readOffset);
-        }
-        if (prefetchedParquetIndexFuture.isDone()) {
-            if (prefetchedParquetIndex == null
-                    || EntryHeader.NOT_FOUND == prefetchedParquetIndex.header()) {
-                prefetchedParquetIndexFuture = updateParquetIndexCache(readOffset);
-            } else {
-                EntryHeader header = prefetchedParquetIndex.header();
-                long beginOffset = header.offset();
-                long endOffset = header.offset() + header.numberOfMessages();
-                if (readOffset < beginOffset || readOffset >= endOffset) {
-                    prefetchedParquetIndexFuture = updateParquetIndexCache(readOffset);
-                }
-            }
-        }
-        return prefetchedParquetIndexFuture.thenCompose(__ -> {
-            if (prefetchedParquetIndex == null) {
-                return CompletableFuture.completedFuture(readOffset);
-            }
-            // Skip v2 index entries
-            try {
-                if (reader.getCompactedObjectFileIndex(prefetchedParquetIndex).isPresent()) {
-                    return CompletableFuture.completedFuture(readOffset);
-                }
-            } catch (IllegalArgumentException e) {
-                return CompletableFuture.completedFuture(readOffset);
-            }
-            EntryHeader prefetchHeader = prefetchedParquetIndex.header();
-            if (EntryHeader.NOT_FOUND == prefetchHeader) {
-                return CompletableFuture.completedFuture(readOffset);
-            }
-            long beginOffset = prefetchHeader.offset();
-            long endOffset = prefetchHeader.offset() + prefetchHeader.numberOfMessages();
-            if (readOffset < beginOffset || readOffset >= endOffset) {
-                return preFetchParquetCache(readOffset, toRead, maxSizeBytes);
-            }
-            Position prefetchPosition = prefetchedParquetIndex.position();
-            if (prefetchPosition == null || prefetchPosition.fileType() != Position.FileType.PARQUET) {
-                prefetchedParquetIndex = null;
-                return CompletableFuture.completedFuture(readOffset);
-            }
-            CompletableFuture<Long> future = null;
-            long baseOffset = readOffset;
-            for (int i = 0; i < TRIGGER_PARQUET_CACHE_ONE_ROUND
-                    && currentParquetCacheCount.get() < PARQUET_TOTAL_CACHE_COUNT
-                    && reader.hasSpaceInCache(); i++) {
-                if (baseOffset >= endOffset) {
-                    future = preFetchParquetCache(baseOffset, toRead, maxSizeBytes);
-                    break;
-                }
-                int readCount = baseOffset + toRead > endOffset
-                    ? (int) (endOffset - baseOffset) : toRead;
-                currentParquetCacheCount.incrementAndGet();
-                future = reader.preFetchMessagesAsync(prefetchPosition.location(),
-                        baseOffset, prefetchHeader.offset(), readCount, maxSizeBytes, maxSizeBytes)
-                    .thenApply((Entry prefetched) -> {
-                        currentParquetCacheCount.decrementAndGet();
-                        return prefetched.header().offset() + prefetched.header().numberOfMessages();
-                    });
-                baseOffset += readCount;
-            }
-            if (future == null) {
-                return CompletableFuture.completedFuture(readOffset);
-            }
-            return future;
-        });
-    }
-
-    private CompletableFuture<Void> updateParquetIndexCache(long startReadOffset) {
-        return logDelegate.getEntryIndex(startReadOffset)
-            .thenAccept(index -> this.prefetchedParquetIndex = index);
     }
 
     /**
