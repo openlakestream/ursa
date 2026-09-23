@@ -193,6 +193,27 @@ class LakehouseMaterializationServiceTest {
     }
 
     @Test
+    void successfulTaskClosesTheMaterializer() {
+        initializeWithoutCompactedObjects();
+        TableMaterializer<?> sink = mock(TableMaterializer.class);
+        TableMaterializerFactory factory = mock(TableMaterializerFactory.class);
+        when(factory.create(any(), any(), any(), any())).thenAnswer(ignored -> sink);
+        service.registerFactory(TableCatalogType.CLICKHOUSE, factory);
+        CompactStreamTask task = sourceTask("default/orders-partition-0", 17L, Map.of());
+        var resolved = new ResolvedMaterialization(
+                new TableCatalog("external", TableCatalogType.CLICKHOUSE, Map.of(), Map.of()),
+                new TableIdentifier("default", "orders"), TableMaterializationPolicy.empty());
+
+        service.materialize(new MaterializationTask(metadata("default", "orders", Map.of()),
+                resolved, task.getTopic(), 17L, 0L, 0L, task));
+
+        // A materializer holds per-task resources such as connections and writers. The service has
+        // to release them when the task finishes, not only when it fails.
+        verify(sink).commit();
+        verify(sink).close();
+    }
+
+    @Test
     void disablingCompactedObjectsWithoutExternalSinkDoesNotRetireTask() {
         CompactTaskManager manager = initializeWithoutCompactedObjects();
         CompactStreamTask task = sourceTask("default/orders-partition-0", 17L, Map.of());
