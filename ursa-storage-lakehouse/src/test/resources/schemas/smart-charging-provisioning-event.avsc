@@ -1,7 +1,7 @@
 {
   "type": "record",
-  "name": "SmartChargingProvisioningEvent",
-  "namespace": "com.tme.ev.chargingplatform",
+  "name": "DeviceConfigurationEvent",
+  "namespace": "com.example.test",
   "fields": [
     {
       "name": "serialNumber",
@@ -33,7 +33,7 @@
       "type": {
         "type": "record",
         "name": "UserInfo",
-        "namespace": "com.tme.ev.chargingplatform",
+        "namespace": "com.example.test",
         "fields": [
           {
             "name": "user_id",
@@ -60,7 +60,7 @@
       "type": {
         "type": "record",
         "name": "EVModel",
-        "namespace": "com.tme.ev.chargingplatform",
+        "namespace": "com.example.test",
         "fields": [
           {
             "name": "self_eff",
@@ -96,7 +96,7 @@
       "type": {
         "type": "record",
         "name": "WBModel",
-        "namespace": "com.tme.ev.chargingplatform",
+        "namespace": "com.example.test",
         "fields": [
           {
             "name": "charging_eff",
@@ -126,7 +126,7 @@
       "type": {
         "type": "record",
         "name": "EnergyContractData",
-        "namespace": "com.tme.ev.chargingplatform",
+        "namespace": "com.example.test",
         "fields": [
           {
             "name": "type",
@@ -150,7 +150,7 @@
               "items": {
                 "type": "record",
                 "name": "DayNightContract",
-                "namespace": "com.tme.ev.chargingplatform",
+                "namespace": "com.example.test",
                 "fields": [
                   {
                     "name": "day_of_the_week",
@@ -164,7 +164,7 @@
                       "items": {
                         "type": "record",
                         "name": "HighLowPeriods",
-                        "namespace": "com.tme.ev.chargingplatform",
+                        "namespace": "com.example.test",
                         "fields": [
                           {
                             "name": "start_time",
@@ -213,7 +213,7 @@
               {
                 "type": "record",
                 "name": "VariableContract",
-                "namespace": "com.tme.ev.chargingplatform",
+                "namespace": "com.example.test",
                 "fields": [
                   {
                     "name": "country_id",
@@ -267,7 +267,7 @@
       "type": {
         "type": "record",
         "name": "SmartChargingPreferences",
-        "namespace": "com.tme.ev.chargingplatform",
+        "namespace": "com.example.test",
         "fields": [
           {
             "name": "id_wb",
@@ -294,7 +294,7 @@
               "items": {
                 "type": "record",
                 "name": "DepartureTime",
-                "namespace": "com.tme.ev.chargingplatform",
+                "namespace": "com.example.test",
                 "fields": [
                   {
                     "name": "day_of_the_week",
@@ -338,7 +338,7 @@
         {
           "type": "record",
           "name": "Address",
-          "namespace": "com.tme.ev.chargingplatform",
+          "namespace": "com.example.test",
           "fields": [
             {
               "name": "country_code",
@@ -385,7 +385,7 @@
         {
           "type": "record",
           "name": "Coordinates",
-          "namespace": "com.tme.ev.chargingplatform",
+          "namespace": "com.example.test",
           "fields": [
             {
               "name": "latitude",
