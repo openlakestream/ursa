@@ -177,6 +177,18 @@ class ClickHouseTableMaterializerTest {
     }
 
     @Test
+    void commitClosesConnection() throws Exception {
+        ClickHouseTableMaterializer materializer = newMaterializer(10);
+        materializer.write(jsonEntry("{\"id\":1}"), context);
+
+        materializer.commit();
+
+        // The compactor drops a materializer after a successful commit without calling close(),
+        // so commit() has to release the connection it was given for the task.
+        verify(connection, times(1)).close();
+    }
+
+    @Test
     void writeAfterCloseThrowsMaterializationException() {
         ClickHouseTableMaterializer materializer = newMaterializer(10);
         materializer.close();
