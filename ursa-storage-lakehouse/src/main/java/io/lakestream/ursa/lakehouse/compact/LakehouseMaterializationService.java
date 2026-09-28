@@ -193,7 +193,6 @@ public class LakehouseMaterializationService implements MaterializationService {
         // multiple destinations at once; task completion is driven from their write results afterwards.
         // A storage-only (NONE) task has no external sink, so only the internal CO writer is built.
         List<TableMaterializer<?>> materializers = new ArrayList<>();
-        boolean committed = false;
         try {
             Map<String, String> effectiveWriterProperties =
                     writerProperties(sourceTaskProperties, streamMetadata);
@@ -218,7 +217,6 @@ public class LakehouseMaterializationService implements MaterializationService {
                                 + " (storage-only catalog but the internal CO writer is unavailable)");
             }
             CommitResult result = writeAndCommit(materializers, task, task.sourceTopic());
-            committed = true;
             runtime.metrics().recordWritten(catalog.name(), catalogType, streamId);
             log.info("Committed task {} in MaterializationService for stream {}: {}",
                 task.sourceTopic(), streamId.fullName(), result);
@@ -241,17 +239,14 @@ public class LakehouseMaterializationService implements MaterializationService {
             throw new MaterializationException(ExceptionCode.INTERNAL_ERROR,
                     "Materialization failed for stream " + streamId.fullName(), e);
         } finally {
-            // Single-use materializers, not shared. On success writeAndCommit already committed (and
-            // closed) them; on the failure path close any still-open to release resources. close()
-            // after commit() is a no-op.
-            if (!committed) {
-                for (TableMaterializer<?> m : materializers) {
-                    try {
-                        m.close();
-                    } catch (RuntimeException ex) {
-                        log.warn("Failed to close materializer for stream {} after a failed task",
-                                streamId.fullName(), ex);
-                    }
+            // Single-use materializers, not shared: release the resources they hold for this task —
+            // connections, writers — once the task is over, whether it succeeded or failed. A
+            // materializer that already released them in commit() treats close() as a no-op.
+            for (TableMaterializer<?> m : materializers) {
+                try {
+                    m.close();
+                } catch (RuntimeException ex) {
+                    log.warn("Failed to close materializer for stream {}", streamId.fullName(), ex);
                 }
             }
         }
