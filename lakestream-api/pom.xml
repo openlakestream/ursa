@@ -12,7 +12,7 @@
   <parent>
     <groupId>org.openlakestream</groupId>
     <artifactId>ursa-storage</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
   </parent>
 
   <artifactId>lakestream-api</artifactId>
