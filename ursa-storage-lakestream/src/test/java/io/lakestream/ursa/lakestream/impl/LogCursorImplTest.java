@@ -41,7 +41,11 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import org.junit.jupiter.api.BeforeEach;
@@ -193,6 +197,47 @@ class LogCursorImplTest {
         // Offsets are contiguous: the compacted range [1,11) is read, not jumped over to offset 11.
         assertEquals(List.of(0L, 1L), result.stream().map(LogEntry::offset).toList());
         assertEquals(11, cursor.readOffset());
+    }
+
+    /**
+     * A read that finds the prefetched indexes empty while an index prefetch is still pending must not wait for
+     * it on the calling thread. That thread is often an Oxia or gRPC thread, the same one that has to deliver
+     * the response completing the prefetch: waiting there freezes every connection that thread serves.
+     */
+    @Test
+    void testReadDoesNotBlockTheCallerWhileAnIndexPrefetchIsPending() throws Exception {
+        CompletableFuture<List<EntryIndex>> pendingRange = new CompletableFuture<>();
+        when(log.readIndexRange(anyLong(), anyLong())).thenReturn(pendingRange);
+        LogEntry first = mockLogEntry(0, 1, 50);
+        LogEntry second = mockLogEntry(1, 1, 50);
+        when(log.readEntries(eq(0L), anyInt(), anyLong()))
+            .thenReturn(CompletableFuture.completedFuture(List.of(first)));
+        when(log.readEntries(eq(1L), anyInt(), anyLong()))
+            .thenReturn(CompletableFuture.completedFuture(List.of(second)));
+        when(log.getEntryIndex(eq(1L))).thenReturn(CompletableFuture.completedFuture(makeRawEntryIndex(1, 1)));
+
+        // The first read leaves an index prefetch pending: its readIndexRange is never answered here.
+        assertEquals(1, cursor.readEntries(10, Long.MAX_VALUE, null, Long.MAX_VALUE).get(5, TimeUnit.SECONDS).size());
+
+        ExecutorService caller = Executors.newSingleThreadExecutor();
+        try {
+            Future<CompletableFuture<List<LogEntry>>> call = caller.submit(
+                () -> cursor.readEntries(10, Long.MAX_VALUE, null, Long.MAX_VALUE));
+            CompletableFuture<List<LogEntry>> read;
+            try {
+                read = call.get(2, TimeUnit.SECONDS);
+            } catch (TimeoutException blocked) {
+                throw new AssertionError("readEntries blocked its caller on the pending index prefetch", blocked);
+            }
+            assertFalse(read.isDone(), "the read has to wait for the prefetch, but not on the caller's thread");
+
+            pendingRange.complete(List.of());
+            List<LogEntry> result = read.get(5, TimeUnit.SECONDS);
+            assertEquals(List.of(1L), result.stream().map(LogEntry::offset).toList());
+        } finally {
+            pendingRange.complete(List.of());
+            caller.shutdownNow();
+        }
     }
 
     // --- Deleted entry skip ---

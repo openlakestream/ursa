@@ -269,7 +269,16 @@ public class LogCursorImpl implements LogCursor {
         // Wait for prefetch to complete before consuming the cached indexes.
         if (useRawPrefetch) {
             if (preFetchedIndexes.isEmpty()) {
-                preFetchIndexesFuture.join();
+                CompletableFuture<Void> pendingPrefetch = preFetchIndexesFuture;
+                if (!pendingPrefetch.isDone()) {
+                    // Never wait for it on this thread: it is often an Oxia or gRPC thread, which is the one that
+                    // has to deliver the response that completes the prefetch, and a blocked network thread
+                    // freezes every connection it serves. Read again once the prefetch is done, whatever its
+                    // outcome: a failure is then raised by the join below, which no longer blocks.
+                    return pendingPrefetch.handle((ignored, failure) -> null).thenCompose(ignored ->
+                        internalReadEntries(maxEntries, maxOffset, maxSizeBytes, skipCondition, result, resultSizeIn));
+                }
+                pendingPrefetch.join();
             }
             triggerPrefetchIfReady(remainingEntries);
         }
