@@ -42,6 +42,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -151,6 +152,47 @@ class LogCursorImplTest {
 
         assertEquals(1, result.size());
         assertTrue(cursor.getPrefetchedIndexes().isEmpty());
+    }
+
+    @Test
+    void testTopUpDoesNotSkipCompactedRangeWhoseIndexWasPolledFromPrefetchCache() throws Exception {
+        // The prefetch cache holds RAW [0,1), then a compacted entry [1,11), then RAW [11,12). A read
+        // takes the first entry, and stops at the compacted one, which it removes from the cache.
+        cursor.getPrefetchedIndexes().add(makeRawEntryIndex(0, 1));
+        cursor.getPrefetchedIndexes().add(makeParquetEntryIndex(1, 10));
+        cursor.getPrefetchedIndexes().add(makeRawEntryIndex(11, 1));
+        cursor.setPrefetchedMessageCount(2);
+
+        // The next index prefetch and the lookup of the entry at the new read offset are still in
+        // flight, as they are on a cold cache, so the top-up of the same read goes on with the cache.
+        when(log.readIndexRange(anyLong(), anyLong())).thenReturn(new CompletableFuture<>());
+        AtomicBoolean firstLookup = new AtomicBoolean(true);
+        when(log.getEntryIndex(anyLong())).thenAnswer(invocation -> {
+            long offset = invocation.getArgument(0);
+            if (firstLookup.compareAndSet(true, false)) {
+                return new CompletableFuture<EntryIndex>();
+            }
+            return CompletableFuture.completedFuture(
+                offset == 1 ? makeParquetEntryIndex(1, 10) : makeRawEntryIndex(offset, 1));
+        });
+        when(logStorage.readEntriesByIndex(eq(logId), any(), anyLong(), anyLong(),
+            anyInt(), anyLong(), any(), any()))
+            .thenAnswer(invocation -> {
+                List<EntryIndex> indexes = invocation.getArgument(1);
+                return CompletableFuture.completedFuture(indexes.stream()
+                    .map(index -> mockLogEntry(
+                        index.header().offset(), index.header().numberOfMessages(), 50))
+                    .toList());
+            });
+        LogEntry compactedEntry = mockLogEntry(1, 10, 500);
+        when(log.readEntries(eq(1L), anyInt(), anyLong()))
+            .thenReturn(CompletableFuture.completedFuture(List.of(compactedEntry)));
+
+        List<LogEntry> result = cursor.readEntries(2, Long.MAX_VALUE).get(5, TimeUnit.SECONDS);
+
+        // Offsets are contiguous: the compacted range [1,11) is read, not jumped over to offset 11.
+        assertEquals(List.of(0L, 1L), result.stream().map(LogEntry::offset).toList());
+        assertEquals(11, cursor.readOffset());
     }
 
     // --- Deleted entry skip ---
