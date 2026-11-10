@@ -5,10 +5,15 @@
 package io.lakestream.ursa.lakestream.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -22,11 +27,13 @@ import io.lakestream.ursa.lakestream.reader.CompactedObjectReader;
 import io.lakestream.ursa.storage.Entry;
 import io.lakestream.ursa.storage.StorageApi;
 import io.lakestream.ursa.storage.impl.EntryIndexCache;
+import io.lakestream.ursa.storage.impl.exception.WalFileAlreadyCompactedException;
 import io.netty.buffer.Unpooled;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -214,6 +221,164 @@ class DefaultUnifiedStreamReaderTest {
     }
 
     @Test
+    void testEmptyRawReadDropsTheStaleIndexAndReadsTheCompactedOne() throws Exception {
+        LogId logId = LogId.of(700);
+        EntryHeader rawHeader = new EntryHeader(40, 20, 1000L, 100, 500);
+        EntryIndex staleRaw = new EntryIndex(rawHeader, new Position("deleted-wal", -1, Position.FileType.RAW), 1,
+            EntryIndex.IndexType.NORMAL, Optional.empty(), Optional.empty(), Optional.empty());
+        EntryHeader compactedHeader = new EntryHeader(30, 40, 1000L, 800, 500);
+        EntryIndex compacted = new EntryIndex(compactedHeader, new Position("parquet", 0, Position.FileType.PARQUET),
+            1, EntryIndex.IndexType.COMPACT, Optional.empty(), Optional.empty(), Optional.empty());
+
+        // The cache still holds the RAW index that compaction replaced; once dropped it resolves the new one.
+        when(entryIndexCache.get(700L, 50L))
+            .thenReturn(CompletableFuture.completedFuture(staleRaw))
+            .thenReturn(CompletableFuture.completedFuture(compacted));
+        when(storageApi.readEntries(eq(700L), eq(50L), eq(5), eq(1024)))
+            .thenReturn(CompletableFuture.completedFuture(List.of()));
+        Entry parquetEntry = Entry.of(new EntryHeader(50, 20, 1000L, 100, 500),
+            Unpooled.wrappedBuffer(new byte[]{7}));
+        when(compactedReader.readMessagesWithEntryIndexAsync(
+            eq(compacted), eq(50L), eq(30L), eq(5L), eq(1024L)))
+            .thenReturn(CompletableFuture.completedFuture(
+                new CompactedObjectReader.ReadResult(List.of(parquetEntry.toLogEntry()))));
+
+        UnifiedStreamReader.ReadResult result = reader.readEntries(logId, 50L, 5, 1024L).get();
+
+        assertEquals(1, result.entries().size());
+        assertEquals(70, result.nextOffset());
+        verify(entryIndexCache).invalidate(700L);
+        result.entries().forEach(LogEntry::close);
+    }
+
+    /**
+     * The cache keeps an index under the offset it was first looked up at and serves the rest of its range
+     * through that key. A stale RAW index first looked up in the middle of its range, as when a consumer resumes
+     * from a committed offset, has to be dropped too when a later offset in its range reads nothing through it.
+     */
+    @Test
+    void testStaleRawIndexCachedUnderAnotherOffsetOfItsRangeIsDropped() throws Exception {
+        LogId logId = LogId.of(702);
+        EntryIndex staleRaw = new EntryIndex(new EntryHeader(40, 20, 1000L, 100, 500),
+            new Position("compacted-wal", -1, Position.FileType.RAW), 1, EntryIndex.IndexType.NORMAL,
+            Optional.empty(), Optional.empty(), Optional.empty());
+        EntryIndex compacted = new EntryIndex(new EntryHeader(30, 40, 1000L, 800, 500),
+            new Position("parquet", 0, Position.FileType.PARQUET), 1, EntryIndex.IndexType.COMPACT,
+            Optional.empty(), Optional.empty(), Optional.empty());
+        AtomicReference<EntryIndex> indexInOxia = new AtomicReference<>(staleRaw);
+        EntryIndexCache cache = new EntryIndexCache(
+            (streamId, offset) -> CompletableFuture.completedFuture(indexInOxia.get()), 100, 600);
+        DefaultUnifiedStreamReader cachingReader = new DefaultUnifiedStreamReader(storageApi, compactedReader, cache);
+
+        // First looked up at 45, the RAW index is cached under key 45 only.
+        assertSame(staleRaw, cache.get(702L, 45L).get());
+        // Compaction replaces it in Oxia, and a RAW read at 50 now finds nothing.
+        indexInOxia.set(compacted);
+        when(storageApi.readEntries(eq(702L), eq(50L), eq(5), eq(1024)))
+            .thenReturn(CompletableFuture.completedFuture(List.of()));
+        Entry parquetEntry = Entry.of(new EntryHeader(50, 20, 1000L, 100, 500),
+            Unpooled.wrappedBuffer(new byte[]{7}));
+        when(compactedReader.readMessagesWithEntryIndexAsync(
+            eq(compacted), eq(50L), eq(30L), eq(5L), eq(1024L)))
+            .thenReturn(CompletableFuture.completedFuture(
+                new CompactedObjectReader.ReadResult(List.of(parquetEntry.toLogEntry()))));
+
+        UnifiedStreamReader.ReadResult result = cachingReader.readEntries(logId, 50L, 5, 1024L).get();
+
+        assertEquals(1, result.entries().size());
+        assertEquals(70, result.nextOffset());
+        verify(storageApi, times(1)).readEntries(eq(702L), eq(50L), eq(5), eq(1024));
+        result.entries().forEach(LogEntry::close);
+    }
+
+    /**
+     * A RAW read whose start and end resolve to the single PARQUET key compaction left fails with
+     * {@link WalFileAlreadyCompactedException} instead of returning nothing. It is the same stale index.
+     */
+    @Test
+    void testWalFileAlreadyCompactedFromAStaleRawIndexReadsTheCompactedOne() throws Exception {
+        LogId logId = LogId.of(703);
+        EntryIndex staleRaw = new EntryIndex(new EntryHeader(40, 20, 1000L, 100, 500),
+            new Position("compacted-wal", -1, Position.FileType.RAW), 1, EntryIndex.IndexType.NORMAL,
+            Optional.empty(), Optional.empty(), Optional.empty());
+        EntryIndex compacted = new EntryIndex(new EntryHeader(30, 40, 1000L, 800, 500),
+            new Position("parquet", 0, Position.FileType.PARQUET), 1, EntryIndex.IndexType.COMPACT,
+            Optional.empty(), Optional.empty(), Optional.empty());
+        when(entryIndexCache.get(703L, 50L))
+            .thenReturn(CompletableFuture.completedFuture(staleRaw))
+            .thenReturn(CompletableFuture.completedFuture(compacted));
+        when(storageApi.readEntries(eq(703L), eq(50L), eq(1), eq(1024)))
+            .thenReturn(CompletableFuture.failedFuture(new WalFileAlreadyCompactedException()));
+        Entry parquetEntry = Entry.of(new EntryHeader(50, 1, 1000L, 100, 500),
+            Unpooled.wrappedBuffer(new byte[]{7}));
+        when(compactedReader.readMessagesWithEntryIndexAsync(
+            eq(compacted), eq(50L), eq(30L), eq(1L), eq(1024L)))
+            .thenReturn(CompletableFuture.completedFuture(
+                new CompactedObjectReader.ReadResult(List.of(parquetEntry.toLogEntry()))));
+
+        UnifiedStreamReader.ReadResult result = reader.readEntries(logId, 50L, 1, 1024L).get();
+
+        assertEquals(1, result.entries().size());
+        assertEquals(51, result.nextOffset());
+        verify(entryIndexCache).invalidate(703L);
+        result.entries().forEach(LogEntry::close);
+    }
+
+    @Test
+    void testWalFileAlreadyCompactedFromAFreshlyResolvedIndexIsRetriedOnlyOnce() {
+        LogId logId = LogId.of(704);
+        EntryIndex raw = new EntryIndex(new EntryHeader(0, 1, 1000L, 10, 10),
+            new Position("wal-file", -1, Position.FileType.RAW), 1, EntryIndex.IndexType.NORMAL,
+            Optional.empty(), Optional.empty(), Optional.empty());
+        when(entryIndexCache.get(704L, 0L)).thenReturn(CompletableFuture.completedFuture(raw));
+        when(storageApi.readEntries(eq(704L), eq(0L), eq(10), eq(4096)))
+            .thenReturn(CompletableFuture.failedFuture(new WalFileAlreadyCompactedException()));
+
+        ExecutionException thrown = assertThrows(ExecutionException.class,
+            () -> reader.readEntries(logId, 0L, 10, 4096L).get());
+
+        assertInstanceOf(WalFileAlreadyCompactedException.class, thrown.getCause());
+        verify(storageApi, times(2)).readEntries(eq(704L), eq(0L), eq(10), eq(4096));
+        verify(entryIndexCache, times(1)).invalidate(704L);
+    }
+
+    @Test
+    void testOtherRawReadFailuresAreNotRetried() {
+        LogId logId = LogId.of(705);
+        EntryIndex raw = new EntryIndex(new EntryHeader(0, 1, 1000L, 10, 10),
+            new Position("wal-file", -1, Position.FileType.RAW), 1, EntryIndex.IndexType.NORMAL,
+            Optional.empty(), Optional.empty(), Optional.empty());
+        when(entryIndexCache.get(705L, 0L)).thenReturn(CompletableFuture.completedFuture(raw));
+        IllegalStateException failure = new IllegalStateException("storage unavailable");
+        when(storageApi.readEntries(eq(705L), eq(0L), eq(10), eq(4096)))
+            .thenReturn(CompletableFuture.failedFuture(failure));
+
+        ExecutionException thrown = assertThrows(ExecutionException.class,
+            () -> reader.readEntries(logId, 0L, 10, 4096L).get());
+
+        assertSame(failure, thrown.getCause());
+        verify(storageApi, times(1)).readEntries(eq(705L), eq(0L), eq(10), eq(4096));
+        verify(entryIndexCache, never()).invalidate(anyLong());
+    }
+
+    @Test
+    void testEmptyRawReadFromAFreshlyResolvedIndexIsRetriedOnlyOnce() throws Exception {
+        LogId logId = LogId.of(701);
+        EntryHeader header = new EntryHeader(0, 1, 1000L, 10, 10);
+        EntryIndex raw = new EntryIndex(header, new Position("wal-file", -1, Position.FileType.RAW), 1,
+            EntryIndex.IndexType.NORMAL, Optional.empty(), Optional.empty(), Optional.empty());
+        when(entryIndexCache.get(701L, 0L)).thenReturn(CompletableFuture.completedFuture(raw));
+        when(storageApi.readEntries(eq(701L), eq(0L), eq(10), eq(4096)))
+            .thenReturn(CompletableFuture.completedFuture(List.of()));
+
+        UnifiedStreamReader.ReadResult result = reader.readEntries(logId, 0L, 10, 4096L).get();
+
+        assertTrue(result.entries().isEmpty());
+        verify(storageApi, times(2)).readEntries(eq(701L), eq(0L), eq(10), eq(4096));
+        verify(entryIndexCache, times(1)).invalidate(701L);
+    }
+
+    @Test
     void testMaxSizeBytesClamping() throws Exception {
         LogId logId = LogId.of(700);
         EntryHeader header = new EntryHeader(0, 1, 1000L, 10, 10);
@@ -224,12 +389,14 @@ class DefaultUnifiedStreamReaderTest {
         when(entryIndexCache.get(700L, 0L))
             .thenReturn(CompletableFuture.completedFuture(entryIndex));
         // maxSizeBytes exceeds Integer.MAX_VALUE — should clamp to Integer.MAX_VALUE
+        Entry entry = Entry.of(header, Unpooled.wrappedBuffer(new byte[]{1}));
         when(storageApi.readEntries(eq(700L), eq(0L), eq(10), eq(Integer.MAX_VALUE)))
-            .thenReturn(CompletableFuture.completedFuture(List.of()));
+            .thenReturn(CompletableFuture.completedFuture(List.of(entry)));
 
-        reader.readEntries(logId, 0L, 10, Long.MAX_VALUE).get();
+        UnifiedStreamReader.ReadResult clamped = reader.readEntries(logId, 0L, 10, Long.MAX_VALUE).get();
 
         verify(storageApi).readEntries(700L, 0L, 10, Integer.MAX_VALUE);
+        clamped.entries().forEach(LogEntry::close);
     }
 
     @Test
