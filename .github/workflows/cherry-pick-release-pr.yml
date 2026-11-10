@@ -158,18 +158,26 @@ jobs:
           TARGET_BRANCH: ${{ steps.release.outputs.target_branch }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
 
+      # GitHub rejects a GITHUB_TOKEN push that changes .github/workflows/, so commits that touch
+      # workflow files fail here and need a manual backport.
       - name: Push successful cherry-pick
         if: ${{ steps.release.outputs.should_run == 'true' && steps.cherry-pick.outcome == 'success' }}
-        id: push
-        run: |
-          if [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/${TARGET_BRANCH}")" ]; then
-            echo "${TARGET_BRANCH} already contains the cherry-pick. Nothing to push."
-            echo "pushed=false" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-          git push origin "HEAD:${TARGET_BRANCH}"
-          echo "pushed=true" >> "${GITHUB_OUTPUT}"
+        run: git push origin "HEAD:${TARGET_BRANCH}"
         env:
+          TARGET_BRANCH: ${{ steps.release.outputs.target_branch }}
+
+      # A push made with GITHUB_TOKEN doesn't trigger workflows, so start the release branch's CI here.
+      # The dispatched runs use the workflow files on the release branch, which need workflow_dispatch.
+      # This also runs when the branch already holds the cherry-pick, so re-running a failed job starts CI.
+      - name: Run CI on the release branch
+        if: ${{ steps.release.outputs.should_run == 'true' && steps.cherry-pick.outcome == 'success' }}
+        run: |
+          for workflow in pr-test-jdk17.yml pr-trivy.yml; do
+            gh workflow run "${workflow}" --ref "${TARGET_BRANCH}"
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           TARGET_BRANCH: ${{ steps.release.outputs.target_branch }}
 
       - name: Label original PR
@@ -204,19 +212,6 @@ jobs:
               issue_number: context.payload.pull_request.number,
               labels: [label],
             });
-
-      # A push made with GITHUB_TOKEN doesn't trigger workflows, so start the release branch's CI here.
-      # The dispatched runs use the workflow files on the release branch, which need workflow_dispatch.
-      - name: Run CI on the release branch
-        if: ${{ steps.push.outputs.pushed == 'true' }}
-        run: |
-          for workflow in pr-test-jdk17.yml pr-trivy.yml; do
-            gh workflow run "${workflow}" --ref "${TARGET_BRANCH}"
-          done
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          TARGET_BRANCH: ${{ steps.release.outputs.target_branch }}
 
       - name: Push failed cherry-pick branch
         if: ${{ steps.release.outputs.should_run == 'true' && steps.cherry-pick.outcome == 'failure' }}
