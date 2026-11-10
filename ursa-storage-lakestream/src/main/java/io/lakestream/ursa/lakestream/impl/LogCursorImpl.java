@@ -274,11 +274,13 @@ public class LogCursorImpl implements LogCursor {
                     // Never wait for it on this thread: it is often an Oxia or gRPC thread, which is the one that
                     // has to deliver the response that completes the prefetch, and a blocked network thread
                     // freezes every connection it serves. Read again once the prefetch is done, whatever its
-                    // outcome: a failure is then raised by the join below, which no longer blocks.
-                    return pendingPrefetch.handle((ignored, failure) -> null).thenCompose(ignored ->
+                    // outcome, and off the thread that completes it.
+                    return pendingPrefetch.handle((ignored, failure) -> null).thenComposeAsync(ignored ->
                         internalReadEntries(maxEntries, maxOffset, maxSizeBytes, skipCondition, result, resultSizeIn));
                 }
-                pendingPrefetch.join();
+                if (pendingPrefetch.isCompletedExceptionally()) {
+                    dropFailedPrefetch(pendingPrefetch);
+                }
             }
             triggerPrefetchIfReady(remainingEntries);
         }
@@ -324,8 +326,8 @@ public class LogCursorImpl implements LogCursor {
         }
 
         final long readOffsetBefore = this.readOffset;
-        // internalReadEntries may block when running on Oxia internal threads, and readFuture is
-        // completed by an Oxia thread as well. Use thenComposeAsync to avoid blocking Oxia's thread.
+        // readFuture is often completed by an Oxia or gRPC thread. Handle its entries, and any top-up read, on
+        // another thread (thenComposeAsync) so that this work does not hold up the connections that thread serves.
         return readFuture.thenComposeAsync(entries -> {
             int nextUnownedEntry = 0;
             long newResultSize = currentResultSize;
@@ -684,6 +686,23 @@ public class LogCursorImpl implements LogCursor {
     @VisibleForTesting
     void setNextReadIndex(CompletableFuture<EntryIndex> future) {
         this.nextReadIndex = future;
+    }
+
+    /**
+     * Forgets an index prefetch that failed, for example on an Oxia session expiry or timeout.
+     *
+     * <p>The prefetch is only an optimisation, so its failure does not fail the read. Kept, the failed future
+     * would never be replaced: {@link #triggerPrefetchIfReady} would see it as done with nothing prefetched,
+     * and every later read would find it again until the cursor is reopened. Once it is dropped,
+     * {@link #triggerPrefetchIfReady} starts a new prefetch and the read goes through the entry index lookup.
+     */
+    private void dropFailedPrefetch(CompletableFuture<Void> failedPrefetch) {
+        failedPrefetch.exceptionally(failure -> {
+            log.warn("Index prefetch failed for cursor {}: {}. Reading through the entry index instead.",
+                name, failure.getMessage());
+            return null;
+        });
+        preFetchIndexesFuture = CompletableFuture.completedFuture(null);
     }
 
     private void triggerPrefetchIfReady(int maxEntries) {

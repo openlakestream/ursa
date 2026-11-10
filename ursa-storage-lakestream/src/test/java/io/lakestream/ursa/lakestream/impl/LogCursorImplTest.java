@@ -240,6 +240,36 @@ class LogCursorImplTest {
         }
     }
 
+    /**
+     * A failed index prefetch, for example after an Oxia session expiry, is only a missed optimisation. Neither
+     * the read waiting for it nor any later read may fail because of it: the cursor has to keep reading through
+     * the entry index instead of throwing on every read until it is reopened.
+     */
+    @Test
+    void testFailedIndexPrefetchDoesNotFailTheWaitingOrLaterReads() throws Exception {
+        CompletableFuture<List<EntryIndex>> pendingRange = new CompletableFuture<>();
+        when(log.readIndexRange(anyLong(), anyLong())).thenReturn(pendingRange);
+        for (long offset = 0; offset < 3; offset++) {
+            LogEntry entry = mockLogEntry(offset, 1, 50);
+            when(log.readEntries(eq(offset), anyInt(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(List.of(entry)));
+            when(log.getEntryIndex(eq(offset)))
+                .thenReturn(CompletableFuture.completedFuture(makeRawEntryIndex(offset, 1)));
+        }
+
+        // The first read leaves an index prefetch pending, and the second read waits for it.
+        assertEquals(1, cursor.readEntries(10, Long.MAX_VALUE, null, Long.MAX_VALUE).get(5, TimeUnit.SECONDS).size());
+        CompletableFuture<List<LogEntry>> waiting = cursor.readEntries(10, Long.MAX_VALUE, null, Long.MAX_VALUE);
+        assertFalse(waiting.isDone());
+
+        pendingRange.completeExceptionally(new IllegalStateException("index range scan failed"));
+
+        assertEquals(List.of(1L), waiting.get(5, TimeUnit.SECONDS).stream().map(LogEntry::offset).toList());
+        List<LogEntry> later = cursor.readEntries(10, Long.MAX_VALUE, null, Long.MAX_VALUE).get(5, TimeUnit.SECONDS);
+        assertEquals(List.of(2L), later.stream().map(LogEntry::offset).toList());
+        assertEquals(3, cursor.readOffset());
+    }
+
     // --- Deleted entry skip ---
 
     @Test
