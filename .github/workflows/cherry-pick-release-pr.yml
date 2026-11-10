@@ -21,7 +21,8 @@ jobs:
     if: ${{ github.event.pull_request.merged == true }}
     runs-on: ubuntu-latest
     permissions:
-      actions: read
+      # write is needed to start CI on the release branch after a successful cherry-pick.
+      actions: write
       contents: write
       issues: write
       pull-requests: write
@@ -159,7 +160,15 @@ jobs:
 
       - name: Push successful cherry-pick
         if: ${{ steps.release.outputs.should_run == 'true' && steps.cherry-pick.outcome == 'success' }}
-        run: git push origin "HEAD:${TARGET_BRANCH}"
+        id: push
+        run: |
+          if [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/${TARGET_BRANCH}")" ]; then
+            echo "${TARGET_BRANCH} already contains the cherry-pick. Nothing to push."
+            echo "pushed=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          git push origin "HEAD:${TARGET_BRANCH}"
+          echo "pushed=true" >> "${GITHUB_OUTPUT}"
         env:
           TARGET_BRANCH: ${{ steps.release.outputs.target_branch }}
 
@@ -195,6 +204,19 @@ jobs:
               issue_number: context.payload.pull_request.number,
               labels: [label],
             });
+
+      # A push made with GITHUB_TOKEN doesn't trigger workflows, so start the release branch's CI here.
+      # The dispatched runs use the workflow files on the release branch, which need workflow_dispatch.
+      - name: Run CI on the release branch
+        if: ${{ steps.push.outputs.pushed == 'true' }}
+        run: |
+          for workflow in pr-test-jdk17.yml pr-trivy.yml; do
+            gh workflow run "${workflow}" --ref "${TARGET_BRANCH}"
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TARGET_BRANCH: ${{ steps.release.outputs.target_branch }}
 
       - name: Push failed cherry-pick branch
         if: ${{ steps.release.outputs.should_run == 'true' && steps.cherry-pick.outcome == 'failure' }}
