@@ -729,6 +729,8 @@ public class LogCursorImpl implements LogCursor {
         List<EntryIndex> result = new ArrayList<>();
         long totalSize = 0;
         long messageCount = 0;
+        // Where the next entry must start for the read to stay contiguous.
+        long expectedOffset = readOffset;
         while (!preFetchedIndexes.isEmpty() && result.size() < maxEntries) {
             EntryIndex next = preFetchedIndexes.peekFirst();
             if (next == null) {
@@ -738,6 +740,19 @@ public class LogCursorImpl implements LogCursor {
             if (next.header().offset() + next.header().numberOfMessages() <= readOffset) {
                 popPrefetchedIndex();
                 continue;
+            }
+            // A hole: this index does not continue where the read is. The cache has lost the entries
+            // between, typically a compacted range whose index was already taken from the cache by an
+            // earlier poll of the same read, or whose WAL entries were replaced by compaction after
+            // the cache was built. Reading from it would jump the cursor over the missing range and
+            // the consumer would never see those records. Drop the cache and let the caller read
+            // from the log, which resolves the index of the exact offset.
+            if (next.header().offset() > expectedOffset) {
+                if (result.isEmpty()) {
+                    preFetchedIndexes.clear();
+                    preFetchedMessageCount = 0;
+                }
+                break;
             }
             // Stop at compacted entries and fall back to the UnifiedStreamReader path.
             if (!next.position().isBinary()) {
@@ -749,6 +764,7 @@ public class LogCursorImpl implements LogCursor {
             popPrefetchedIndex();
             // Skip individually deleted offsets (single-entry indexes only)
             if (next.entryCount() == 1 && isOffsetDeleted(eh.offset())) {
+                expectedOffset = Math.max(expectedOffset, eh.offset() + eh.numberOfMessages());
                 continue;
             }
             if (eh.offset() >= maxOffset
@@ -758,6 +774,7 @@ public class LogCursorImpl implements LogCursor {
                 break;
             }
             result.add(next);
+            expectedOffset = Math.max(expectedOffset, eh.offset() + eh.numberOfMessages());
             totalSize += eh.entrySize();
             messageCount += eh.numberOfMessages();
         }
