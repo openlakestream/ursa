@@ -54,24 +54,49 @@ public class DefaultUnifiedStreamReader implements UnifiedStreamReader {
     @Override
     public CompletableFuture<ReadResult> readEntries(
             LogId logId, long startOffset, int maxMessageCount, long maxSizeBytes) {
-        long streamId = logId.id();
-        CompletableFuture<ReadResult> read = entryIndexCache.get(streamId, startOffset)
+        CompletableFuture<ReadResult> read =
+            readIndexed(logId.id(), startOffset, maxMessageCount, maxSizeBytes, true);
+        return OwnedResultFutures.transfer(read, result -> {
+            if (result != null) {
+                OwnedResultFutures.closeLogEntries(result.entries());
+            }
+        });
+    }
+
+    /**
+     * Resolves the entry index of {@code startOffset} and reads through it.
+     *
+     * <p>A RAW read that comes back empty although an index resolved is not trusted. Compaction replaces a
+     * RAW index with a PARQUET one under the same key and deletes the WAL file, while this reader's cached
+     * index can still be the RAW one: the RAW read then finds nothing, every later read resolves the same
+     * cached index and finds nothing again, and a consumer waiting at that offset is answered empty until
+     * the cache entry expires or another failure clears the cache. The stale index is dropped and the
+     * offset is resolved once more; only an empty answer from a freshly resolved index is returned.
+     */
+    private CompletableFuture<ReadResult> readIndexed(
+            long streamId, long startOffset, int maxMessageCount, long maxSizeBytes, boolean retryEmptyRaw) {
+        return entryIndexCache.get(streamId, startOffset)
             .thenCompose(entryIndex -> {
                 if (entryIndex == null || entryIndex == EntryIndex.NOT_FOUND) {
                     return CompletableFuture.completedFuture(
                         new ReadResult(List.of(), startOffset));
                 }
                 return switch (entryIndex.position().fileType()) {
-                    case RAW -> readFromRaw(streamId, startOffset, maxMessageCount, maxSizeBytes);
+                    case RAW -> readFromRaw(streamId, startOffset, maxMessageCount, maxSizeBytes)
+                        .thenCompose(result -> {
+                            if (retryEmptyRaw && result.entries().isEmpty()) {
+                                entryIndexCache.invalidate(streamId, startOffset);
+                                if (entryIndex.header().offset() != startOffset) {
+                                    entryIndexCache.invalidate(streamId, entryIndex.header().offset());
+                                }
+                                return readIndexed(streamId, startOffset, maxMessageCount, maxSizeBytes, false);
+                            }
+                            return CompletableFuture.completedFuture(result);
+                        });
                     case PARQUET -> readFromCompacted(
                         entryIndex, startOffset, maxMessageCount, maxSizeBytes);
                 };
             });
-        return OwnedResultFutures.transfer(read, result -> {
-            if (result != null) {
-                OwnedResultFutures.closeLogEntries(result.entries());
-            }
-        });
     }
 
     private CompletableFuture<ReadResult> readFromRaw(

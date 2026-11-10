@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -214,6 +215,55 @@ class DefaultUnifiedStreamReaderTest {
     }
 
     @Test
+    void testEmptyRawReadDropsTheStaleIndexAndReadsTheCompactedOne() throws Exception {
+        LogId logId = LogId.of(700);
+        EntryHeader rawHeader = new EntryHeader(40, 20, 1000L, 100, 500);
+        EntryIndex staleRaw = new EntryIndex(rawHeader, new Position("deleted-wal", -1, Position.FileType.RAW), 1,
+            EntryIndex.IndexType.NORMAL, Optional.empty(), Optional.empty(), Optional.empty());
+        EntryHeader compactedHeader = new EntryHeader(30, 40, 1000L, 800, 500);
+        EntryIndex compacted = new EntryIndex(compactedHeader, new Position("parquet", 0, Position.FileType.PARQUET),
+            1, EntryIndex.IndexType.COMPACT, Optional.empty(), Optional.empty(), Optional.empty());
+
+        // The cache still holds the RAW index that compaction replaced; once dropped it resolves the new one.
+        when(entryIndexCache.get(700L, 50L))
+            .thenReturn(CompletableFuture.completedFuture(staleRaw))
+            .thenReturn(CompletableFuture.completedFuture(compacted));
+        when(storageApi.readEntries(eq(700L), eq(50L), eq(5), eq(1024)))
+            .thenReturn(CompletableFuture.completedFuture(List.of()));
+        Entry parquetEntry = Entry.of(new EntryHeader(50, 20, 1000L, 100, 500),
+            Unpooled.wrappedBuffer(new byte[]{7}));
+        when(compactedReader.readMessagesWithEntryIndexAsync(
+            eq(compacted), eq(50L), eq(30L), eq(5L), eq(1024L)))
+            .thenReturn(CompletableFuture.completedFuture(
+                new CompactedObjectReader.ReadResult(List.of(parquetEntry.toLogEntry()))));
+
+        UnifiedStreamReader.ReadResult result = reader.readEntries(logId, 50L, 5, 1024L).get();
+
+        assertEquals(1, result.entries().size());
+        assertEquals(70, result.nextOffset());
+        verify(entryIndexCache).invalidate(700L, 50L);
+        verify(entryIndexCache).invalidate(700L, 40L);
+        result.entries().forEach(LogEntry::close);
+    }
+
+    @Test
+    void testEmptyRawReadFromAFreshlyResolvedIndexIsRetriedOnlyOnce() throws Exception {
+        LogId logId = LogId.of(701);
+        EntryHeader header = new EntryHeader(0, 1, 1000L, 10, 10);
+        EntryIndex raw = new EntryIndex(header, new Position("wal-file", -1, Position.FileType.RAW), 1,
+            EntryIndex.IndexType.NORMAL, Optional.empty(), Optional.empty(), Optional.empty());
+        when(entryIndexCache.get(701L, 0L)).thenReturn(CompletableFuture.completedFuture(raw));
+        when(storageApi.readEntries(eq(701L), eq(0L), eq(10), eq(4096)))
+            .thenReturn(CompletableFuture.completedFuture(List.of()));
+
+        UnifiedStreamReader.ReadResult result = reader.readEntries(logId, 0L, 10, 4096L).get();
+
+        assertTrue(result.entries().isEmpty());
+        verify(storageApi, times(2)).readEntries(eq(701L), eq(0L), eq(10), eq(4096));
+        verify(entryIndexCache, times(1)).invalidate(701L, 0L);
+    }
+
+    @Test
     void testMaxSizeBytesClamping() throws Exception {
         LogId logId = LogId.of(700);
         EntryHeader header = new EntryHeader(0, 1, 1000L, 10, 10);
@@ -224,12 +274,14 @@ class DefaultUnifiedStreamReaderTest {
         when(entryIndexCache.get(700L, 0L))
             .thenReturn(CompletableFuture.completedFuture(entryIndex));
         // maxSizeBytes exceeds Integer.MAX_VALUE — should clamp to Integer.MAX_VALUE
+        Entry entry = Entry.of(header, Unpooled.wrappedBuffer(new byte[]{1}));
         when(storageApi.readEntries(eq(700L), eq(0L), eq(10), eq(Integer.MAX_VALUE)))
-            .thenReturn(CompletableFuture.completedFuture(List.of()));
+            .thenReturn(CompletableFuture.completedFuture(List.of(entry)));
 
-        reader.readEntries(logId, 0L, 10, Long.MAX_VALUE).get();
+        UnifiedStreamReader.ReadResult clamped = reader.readEntries(logId, 0L, 10, Long.MAX_VALUE).get();
 
         verify(storageApi).readEntries(700L, 0L, 10, Integer.MAX_VALUE);
+        clamped.entries().forEach(LogEntry::close);
     }
 
     @Test
