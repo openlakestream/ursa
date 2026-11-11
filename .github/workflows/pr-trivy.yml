@@ -9,13 +9,13 @@ on:
   pull_request:
     branches:
       - main
-      - branch-4.0
-      - branch-4.1
+      - 'branch-*'    # release branches, such as branch-1.0
   push:
     branches:
       - main
-      - branch-4.0
-      - branch-4.1
+      - 'branch-*'
+  # Started by cherry-pick-release-pr.yml, whose GITHUB_TOKEN push doesn't trigger the push event.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
